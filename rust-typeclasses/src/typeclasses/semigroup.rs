@@ -29,18 +29,21 @@ pub fn combine<T, T2, TR>(t: impl Semigroup<T, T2, TR>, a: T, b: T2) -> TR {
 }
 
 pub struct StringSemigroup;
+pub const STR_SG: StringSemigroup = StringSemigroup;
 
 impl<T: ToString, T2: ToString> Semigroup<T, T2, String> for StringSemigroup {
     fn combine(self, a: T, b: T2) -> String { format!("{}{}", a.to_string(), b.to_string()) }
 }
 
 pub struct IntAddSemigroup;
+pub const IADD_SG: IntAddSemigroup = IntAddSemigroup;
 
 impl<T: Add<Output=T>> Semigroup<T, T, T> for IntAddSemigroup {
     fn combine(self, a: T, b: T) -> T { a + b }
 }
 
 pub struct IntMulSemigroup;
+pub const IMUL_SG: IntMulSemigroup = IntMulSemigroup;
 
 impl<T: Mul<Output=T>> Semigroup<T, T, T> for IntMulSemigroup {
     fn combine(self, a: T, b: T) -> T { a * b }
@@ -70,25 +73,25 @@ mod tests {
 
     #[test]
     fn string_combine() {
-        let out = StringSemigroup.combine("Hello", format!(" World"));
+        let out = STR_SG.combine("Hello", format!(" World"));
         assert_eq!("Hello World", out);
     }
 
     #[test]
     fn int_combine() {
-        let out = IntAddSemigroup.combine(1, 2);
+        let out = IADD_SG.combine(1, 2);
         assert_eq!(3, out);
 
-        let out = Semigroup::combine(IntMulSemigroup, 1.2, 2.2);
+        let out = Semigroup::combine(IMUL_SG, 1.2, 2.2);
         assert_eq!(2.64, out);
     }
 
     #[test]
     fn functional_combine() {
-        let out = combine(IntMulSemigroup, 1, 2);
+        let out = combine(IMUL_SG, 1, 2);
         assert_eq!(2, out);
 
-        let out = combine(IntAddSemigroup, 5, 4);
+        let out = combine(IADD_SG, 5, 4);
         assert_eq!(9, out);
     }
 }

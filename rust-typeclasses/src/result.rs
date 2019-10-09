@@ -18,6 +18,13 @@ impl<X, X2, XR, E, T: Semigroup<X, X2, XR>> Semigroup<
 }
 
 pub struct ResultEffect;
+impl ResultEffect {
+    pub fn sg<X, X2, XR, T: Semigroup<X, X2, XR>>(&self, ev: T) -> CombineInnerSemigroup<X, X2, XR, T>{
+        CombineInnerSemigroup::apply(ev)
+    }
+}
+pub const RES_EV: &ResultEffect = &ResultEffect;
+
 impl<T, E: Default> Monoid<Result<T, E>> for ResultEffect {
     fn empty(&self) -> Result<T, E> {
         Err(E::default())
@@ -53,7 +60,7 @@ impl<X, Y: Clone, E> Foldable<Result<X, E>, X, Y, Y> for ResultEffect {
 }
 impl<X: Clone, Y: Clone, E> Productable<Result<X, E>, Result<Y, E>, Result<(X, Y), E>, X, Y> for ResultEffect {
     fn product(&self, fa: Result<X, E>, fb: Result<Y, E>) -> Result<(X, Y), E> {
-        fmap2(&ResultEffect, fa, fb, |a, b| (a.clone(), b.clone()))
+        fmap2(RES_EV, fa, fb, |a, b| (a.clone(), b.clone()))
     }
 }
 
@@ -66,72 +73,72 @@ mod tests {
         let a = Ok(3);
         let b = Ok(5);
 
-        let out: Result<i32, ()> = combine(CombineInnerSemigroup::apply(IntAddSemigroup), a, b);
+        let out: Result<i32, ()> = combine(RES_EV.sg(IADD_SG), a, b);
         assert_eq!(Ok(8), out);
 
         let a = Ok(3);
         let b = Err(());
 
-        let out = combine(CombineInnerSemigroup::apply(IntAddSemigroup), a, b);
+        let out = combine(RES_EV.sg(IADD_SG), a, b);
         assert_eq!(Err(()), out);
 
         let a = Ok("Hello");
         let b = Ok(" World".to_string());
 
-        let out: Result<String, ()> = combine(CombineInnerSemigroup::apply(StringSemigroup), a, b);
+        let out: Result<String, ()> = combine(RES_EV.sg(STR_SG), a, b);
         assert_eq!("Hello World", out.unwrap());
     }
 
     #[test]
     fn test_monoid() {
-        let out: Result<u32, ()> = ResultEffect.empty();
+        let out: Result<u32, ()> = RES_EV.empty();
         assert_eq!(Err(()), out);
     }
 
     #[test]
     fn test_applicative() {
-        let out: Result<u32, ()> = ResultEffect.pure(3);
+        let out: Result<u32, ()> = RES_EV.pure(3);
         assert_eq!(Ok(3), out);
 
-        let out: Result<&str, ()> = ResultEffect.pure("test");
+        let out: Result<&str, ()> = RES_EV.pure("test");
         assert_eq!(Ok("test"), out);
     }
 
     #[test]
     fn test_functor() {
-        let out: Result<u32, ()> = pure(&ResultEffect, 3);
-        let res = fmap(&ResultEffect, out, |i| i + 4);
+        let out: Result<u32, ()> = pure(RES_EV, 3);
+        let res = fmap(RES_EV, out, |i| i + 4);
         assert_eq!(Ok(7), res);
 
-        let out: Result<String, ()> = pure(&ResultEffect, format!("Hello"));
-        let res = fmap(&ResultEffect, out, |i| format!("{} World", i));
+        let out: Result<String, ()> = pure(RES_EV, format!("Hello"));
+        let res = fmap(RES_EV, out, |i| format!("{} World", i));
         assert_eq!("Hello World", res.unwrap());
 
-        let out: Result<String, ()> = empty(&ResultEffect);
-        let res = fmap(&ResultEffect, out, |i| format!("{} World", i));
+        let out: Result<String, ()> = empty(RES_EV);
+        let res = fmap(RES_EV, out, |i| format!("{} World", i));
         assert_eq!(Err(()), res);
 
-        let out1: Result<u32, ()> = pure(&ResultEffect, 3);
-        let out2: Result<String, ()> = pure(&ResultEffect, format!("Bowls"));
-        let res = fmap2(&ResultEffect, out1, out2, |i, j| format!("{} {} of salad", i+4, j));
+        let out1: Result<u32, ()> = pure(RES_EV, 3);
+        let out2: Result<String, ()> = pure(RES_EV, format!("Bowls"));
+        let res = fmap2(RES_EV, out1, out2, |i, j| format!("{} {} of salad", i+4, j));
         assert_eq!("7 Bowls of salad", res.unwrap());
 
-        let out1: Result<u32, ()> = pure(&ResultEffect, 3);
+        let out1: Result<u32, ()> = pure(RES_EV, 3);
         let out2: Result<String, ()> = Err(());
-        let res = fmap2(&ResultEffect, out1, out2, |i, j| format!("{} {} of salad", i+4, j));
+        let res = fmap2(RES_EV, out1, out2, |i, j| format!("{} {} of salad", i+4, j));
         assert_eq!(Err(()), res);
     }
 
     #[test]
     fn test_product() {
-        let out1: Result<u32, ()> = pure(&ResultEffect, 3);
-        let out2: Result<u32, ()> = pure(&ResultEffect, 5);
-        let res = product(&ResultEffect, out1, out2);
+        let out1: Result<u32, ()> = pure(RES_EV, 3);
+        let out2: Result<u32, ()> = pure(RES_EV, 5);
+        let res = product(RES_EV, out1, out2);
         assert_eq!(Ok((3, 5)), res);
 
-        let out1: Result<u32, ()> = pure(&ResultEffect, 3);
-        let out2: Result<u32, ()> = empty(&ResultEffect);
-        let res = product(&ResultEffect, out1, out2);
+        let out1: Result<u32, ()> = pure(RES_EV, 3);
+        let out2: Result<u32, ()> = empty(RES_EV);
+        let res = product(RES_EV, out1, out2);
         assert_eq!(Err(()), res);
     }
 }

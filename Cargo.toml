@@ -10,3 +10,6 @@ name = "basic_typeclasses"
 [workspace]
 members = ["rust-typeclasses", "rust-typeclasses-future"]
 
+[dependencies]
+rust-typeclasses = {path="rust-typeclasses"}
+rust-typeclasses-future = {path="rust-typeclasses-future"}

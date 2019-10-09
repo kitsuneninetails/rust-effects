@@ -54,19 +54,16 @@ impl<'a, X> Future for ConcreteFuture<'a, X> {
     }
 }
 
-pub struct FutureEffect<X> {
-    _p1: PhantomData<X>
-}
-
-impl<X> FutureEffect<X> {
-    pub fn apply() -> Self {
-        FutureEffect {
-            _p1: PhantomData
-        }
+pub struct FutureEffect;
+impl FutureEffect {
+    pub fn sg<X, X2, XR, T: Semigroup<X, X2, XR>>(&self, ev: T) -> FutureInnerSemigroup<X, X2, XR, T>{
+        FutureInnerSemigroup::apply(ev)
     }
 }
 
-impl<'a, X: 'a + Default + Send> Monoid<ConcreteFuture<'a, X>> for FutureEffect<X> {
+pub const FUT_EV: &FutureEffect = &FutureEffect;
+
+impl<'a, X: 'a + Default + Send> Monoid<ConcreteFuture<'a, X>> for FutureEffect {
     fn empty(&self) -> ConcreteFuture<'a, X> {
         ConcreteFuture::new(ready(X::default()))
     }
@@ -90,7 +87,7 @@ impl<'a, X1, X2, R, T> Semigroup<
     }
 }
 
-impl<'a, X> Applicative<ConcreteFuture<'a, X>, X> for FutureEffect<X>
+impl<'a, X> Applicative<ConcreteFuture<'a, X>, X> for FutureEffect
     where
         X:  'a + Send + Sync {
     fn pure(&self, x: X) -> ConcreteFuture<'a, X> {
@@ -102,7 +99,7 @@ impl<'a, X, Y> Functor<
     ConcreteFuture<'a, X>,
     ConcreteFuture<'a, Y>,
     X,
-    Y> for FutureEffect<X>
+    Y> for FutureEffect
     where
         X: 'a + Send + Sync,
         Y: 'a + Send + Sync {
@@ -117,7 +114,7 @@ impl<'a, X, Y, Z> Functor2<
     ConcreteFuture<'a, Z>,
     X,
     Y,
-    Z> for FutureEffect<Z>
+    Z> for FutureEffect
     where
         X: 'a + Send + Sync,
         Y: 'a + Send + Sync,
@@ -136,7 +133,7 @@ impl<'a, X, Y> Monad<
     ConcreteFuture<'a, X>,
     ConcreteFuture<'a, Y>,
     X,
-    Y> for FutureEffect<X>
+    Y> for FutureEffect
     where
         X: 'a + Send + Sync,
         Y: 'a + Send + Sync {
@@ -151,7 +148,7 @@ impl<'a, X, Y> Foldable<
     ConcreteFuture<'a, X>,
     X,
     Y,
-    ConcreteFuture<'a, Y>> for FutureEffect<X>
+    ConcreteFuture<'a, Y>> for FutureEffect
     where
         X: 'a + Send,
         Y: 'a + Send {
@@ -169,7 +166,7 @@ impl<'a, X, Y> VecFoldable<
     X,
     Y,
     ConcreteFuture<'a, Y>,
-    FutureEffect<X>> for FutureEffect<X>
+    FutureEffect> for FutureEffect
     where
         X: 'a + Send,
         Y: 'a + Send {
@@ -191,14 +188,14 @@ impl<'a, X: Clone, Y: Clone> Productable<
     ConcreteFuture<'a, Y>,
     ConcreteFuture<'a, (X, Y)>,
     X,
-    Y> for FutureEffect<X>
+    Y> for FutureEffect
     where
         X: 'a + Send + Sync,
         Y: 'a + Send + Sync {
     fn product(&self,
                fa: ConcreteFuture<'a, X>,
                fb: ConcreteFuture<'a, Y>) -> ConcreteFuture<'a, (X, Y)> {
-        fmap2(&FutureEffect::apply(), fa, fb, |a, b| (a.clone(), b.clone()))
+        fmap2(FUT_EV, fa, fb, |a, b| (a.clone(), b.clone()))
     }
 }
 
@@ -208,7 +205,7 @@ impl<'a, X: Clone, Y: Clone> Productable<
 //    ConcreteFuture<'a, Y>,
 //    FR,
 //    X,
-//    Y> for FutureEffect<X>
+//    Y> for FutureEffect
 //    where
 //        Y: Clone,
 //        E: F<Y>,
@@ -225,7 +222,7 @@ impl<'a, X: Clone, Y: Clone> Productable<
 mod tests {
     use super::*;
     use rust_typeclasses::typeclasses::traverse::traverse;
-    use rust_typeclasses::vec::VecEffect;
+    use rust_typeclasses::vec::*;
 
     use futures::executor::block_on;
     use futures::future::lazy;
@@ -233,9 +230,9 @@ mod tests {
     #[test]
     fn test_semigroup() {
         block_on(async {
-            let f1 = pure(&FutureEffect::apply(), 1u32);
-            let f2 = pure(&FutureEffect::apply(), 2u32);
-            let fr = combine(FutureInnerSemigroup::<u32, u32, u32, IntAddSemigroup>::apply(IntAddSemigroup), f1, f2);
+            let f1 = pure(FUT_EV, 1u32);
+            let f2 = pure(FUT_EV, 2u32);
+            let fr = combine(FUT_EV.sg(IADD_SG), f1, f2);
             assert_eq!(fr.await, 3);
         });
     }
@@ -243,7 +240,7 @@ mod tests {
     #[test]
     fn test_monoid() {
         block_on(async {
-            let f = empty(&FutureEffect::<u32>::apply());
+            let f: ConcreteFuture<u32> = empty(FUT_EV);
             assert_eq!(f.await, 0);
         });
     }
@@ -251,9 +248,9 @@ mod tests {
     #[test]
     fn test_applicative() {
         block_on(async {
-            let f = pure(&FutureEffect::apply(), 3u32);
+            let f = pure(FUT_EV, 3u32);
             assert_eq!(f.await, 3);
-            let f = pure(&FutureEffect::<Result<&str, ()>>::apply(), Ok("test"));
+            let f: ConcreteFuture<Result<&str, ()>> = pure(FUT_EV, Ok("test"));
             assert_eq!(f.await, Ok("test"));
         });
     }
@@ -261,8 +258,8 @@ mod tests {
     #[test]
     fn test_functor() {
         block_on(async {
-            let f = pure(&FutureEffect::apply(), 3u32);
-            let f = fmap(&FutureEffect::apply(), f, |i| format!("{} strings", i));
+            let f = pure(FUT_EV, 3u32);
+            let f = fmap(FUT_EV, f, |i| format!("{} strings", i));
             assert_eq!(f.await, "3 strings".to_string());
         });
     }
@@ -270,16 +267,16 @@ mod tests {
     #[test]
     fn test_monad() {
         block_on(async {
-            let f = pure(&FutureEffect::apply(), 3u32);
-            let f2 = flat_map(&FutureEffect::apply(), f, |i| {
+            let f = pure(FUT_EV, 3u32);
+            let f2 = flat_map(FUT_EV, f, |i| {
                 ConcreteFuture::new(lazy(move |_| format!("{} strings", i)))
             });
             assert_eq!(f2.await, "3 strings".to_string());
         });
 
         block_on(async {
-            let f = pure(&FutureEffect::apply(), 3u32);
-            let fr = fold(&FutureEffect::apply(),
+            let f = pure(FUT_EV, 3u32);
+            let fr = fold(FUT_EV,
                           f,
                           10u32,
                           |y, x| y + x);
@@ -288,14 +285,14 @@ mod tests {
 
         block_on(async {
             let fs = vec![
-                pure(&FutureEffect::apply(), 3u32),
+                pure(FUT_EV, 3u32),
                 ConcreteFuture::new(ready(10u32)),
                 ConcreteFuture::new(lazy(|_| 4u32))
             ];
-            let fr = vfold(&FutureEffect::apply(),
-                          fs,
-                          0u32,
-                          |y, x| y + x);
+            let fr = vfold(FUT_EV,
+                           fs,
+                           0u32,
+                           |y, x| y + x);
             assert_eq!(fr.await, 17);
         });
     }
@@ -303,9 +300,9 @@ mod tests {
     #[test]
     fn test_product() {
         block_on(async {
-            let f1 = pure(&FutureEffect::apply(), 3u32);
-            let f2 = pure(&FutureEffect::apply(), "strings");
-            let f = product(&FutureEffect::apply(), f1, f2);
+            let f1 = pure(FUT_EV, 3u32);
+            let f2 = pure(FUT_EV, "strings");
+            let f = product(FUT_EV, f1, f2);
             assert_eq!(f.await, (3, "strings"));
         });
     }
@@ -314,8 +311,8 @@ mod tests {
     fn test_traverse() {
         block_on(async {
             let fs: Vec<u32> = vec![3, 10, 4];
-            let fr = traverse(&VecEffect,
-                              &FutureEffect::apply(),
+            let fr = traverse(VEC_EV,
+                              FUT_EV,
                               fs,
                               |x| ConcreteFuture::new(ready(x + 5)));
             assert_eq!(fr.await, vec![9, 15, 8]);
