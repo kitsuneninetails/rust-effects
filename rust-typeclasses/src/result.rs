@@ -35,23 +35,26 @@ impl<T, E> Applicative<Result<T, E>, T> for ResultEffect {
         Ok(x)
     }
 }
-impl<X, Y, E> Functor<Result<X, E>, Result<Y, E>, X, Y> for ResultEffect {
-    fn fmap(&self, f: Result<X, E>, func: fn(X) -> Y) -> Result<Y, E> {
+impl<'a, X, Y, E> Functor<'a, Result<X, E>, Result<Y, E>, X, Y> for ResultEffect {
+    fn fmap(&self, f: Result<X, E>, func: impl 'a + Fn(X) -> Y + Send + Sync) -> Result<Y, E> {
         f.map(func)
     }
 }
-impl<X, Y, Z, E> Functor2<Result<X, E>, Result<Y, E>, Result<Z, E>, X, Y, Z> for ResultEffect {
-    fn fmap2(&self, r1: Result<X, E>, r2: Result<Y, E>, func: fn(&X, &Y) -> Z) -> Result<Z, E> {
+impl<'a, X, Y, Z, E> Functor2<'a, Result<X, E>, Result<Y, E>, Result<Z, E>, X, Y, Z> for ResultEffect {
+    fn fmap2(&self, r1: Result<X, E>, r2: Result<Y, E>, func: impl 'a + Fn(&X, &Y) -> Z + Send + Sync) -> Result<Z, E> {
         r1.and_then(|i| r2.map(|j| func(&i, &j)))
     }
 }
-impl<X, Y, E> Monad<Result<X, E>, Result<Y, E>, X, Y> for ResultEffect {
-    fn flat_map(&self, f: Result<X, E>, func: fn(X) -> Result<Y, E>) -> Result<Y, E> {
+impl<'a, X, Y, E> Monad<'a, Result<X, E>, Result<Y, E>> for ResultEffect {
+    type In = X;
+    type Out = Y;
+
+    fn flat_map(&self, f: Result<X, E>, func: impl 'a + Fn(X) -> Result<Y, E> + Send + Sync) -> Result<Y, E> {
         f.and_then(func)
     }
 }
-impl<X, Y: Clone, E> Foldable<Result<X, E>, X, Y, Y> for ResultEffect {
-    fn fold(&self, f: Result<X, E>, init: Y, func: fn(Y, X) -> Y) -> Y {
+impl<'a, X, Y: Clone, E> Foldable<'a, Result<X, E>, X, Y, Y> for ResultEffect {
+    fn fold(&self, f: Result<X, E>, init: Y, func: impl 'a + Fn(Y, X) -> Y + Send + Sync) -> Y {
         match f {
             Ok(i) => func(init, i),
             Err(_e) => init

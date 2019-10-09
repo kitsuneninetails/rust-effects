@@ -7,7 +7,7 @@ use rust_typeclasses::typeclasses::{F,
                                     semigroup::*};
 use futures::prelude::*;
 use futures::future::{ready, BoxFuture};
-use futures::Poll;
+use futures::{Poll, FutureExt};
 use futures::task::Context;
 use std::marker::PhantomData;
 use std::pin::Pin;
@@ -96,6 +96,7 @@ impl<'a, X> Applicative<ConcreteFuture<'a, X>, X> for FutureEffect
 }
 
 impl<'a, X, Y> Functor<
+    'a,
     ConcreteFuture<'a, X>,
     ConcreteFuture<'a, Y>,
     X,
@@ -103,12 +104,15 @@ impl<'a, X, Y> Functor<
     where
         X: 'a + Send + Sync,
         Y: 'a + Send + Sync {
-    fn fmap(&self, f: ConcreteFuture<'a, X>, func: fn(X) -> Y) -> ConcreteFuture<'a, Y> {
+    fn fmap(&self,
+            f: ConcreteFuture<'a, X>,
+            func: impl 'a + Fn(X) -> Y + Send) -> ConcreteFuture<'a, Y> {
         ConcreteFuture::new(f.map(move |x| func(x)))
     }
 }
 
 impl<'a, X, Y, Z> Functor2<
+    'a,
     ConcreteFuture<'a, X>,
     ConcreteFuture<'a, Y>,
     ConcreteFuture<'a, Z>,
@@ -122,7 +126,7 @@ impl<'a, X, Y, Z> Functor2<
     fn fmap2(&self,
              fa: ConcreteFuture<'a, X>,
              fb: ConcreteFuture<'a, Y>,
-             func: fn(&X, &Y) -> Z) -> ConcreteFuture<'a, Z> {
+             func: impl 'a + Fn(&X, &Y) -> Z + Send) -> ConcreteFuture<'a, Z> {
         let fr = fa.then(move |x| fb.map(move |y| func(&x,&y)));
 
         ConcreteFuture::<'a, Z>::new(fr)
@@ -130,21 +134,24 @@ impl<'a, X, Y, Z> Functor2<
 }
 
 impl<'a, X, Y> Monad<
+    'a,
     ConcreteFuture<'a, X>,
-    ConcreteFuture<'a, Y>,
-    X,
-    Y> for FutureEffect
+    ConcreteFuture<'a, Y>> for FutureEffect
     where
         X: 'a + Send + Sync,
         Y: 'a + Send + Sync {
+    type In = X;
+    type Out = Y;
+
     fn flat_map(&self,
                 f: ConcreteFuture<'a, X>,
-                func: fn(X) -> ConcreteFuture<'a, Y>) -> ConcreteFuture<'a, Y> {
+                func: impl 'a + Fn(X) -> ConcreteFuture<'a, Y> + Send) -> ConcreteFuture<'a, Y> {
         ConcreteFuture::new(f.map(move |x| func(x)).flatten())
     }
 }
 
 impl<'a, X, Y> Foldable<
+    'a,
     ConcreteFuture<'a, X>,
     X,
     Y,
@@ -155,13 +162,14 @@ impl<'a, X, Y> Foldable<
     fn fold(&self,
             f: ConcreteFuture<'a, X>,
             init: Y,
-            func: fn(Y, X) -> Y)
+            func: impl 'a + Fn(Y, X) -> Y + Send)
         -> ConcreteFuture<'a, Y> {
         ConcreteFuture::new(f.map(move |x| func(init, x)))
     }
 }
 
 impl<'a, X, Y> VecFoldable<
+    'a,
     ConcreteFuture<'a, X>,
     X,
     Y,
@@ -173,13 +181,13 @@ impl<'a, X, Y> VecFoldable<
     fn fold(&self,
             f: Vec<ConcreteFuture<'a, X>>,
             init: Y,
-            func: fn(Y, X) -> Y)
+            func: impl 'a + Fn(Y, X) -> Y + Send + Sync + Copy)
         -> ConcreteFuture<'a, Y> {
-        f.into_iter()
-            .fold(ConcreteFuture::new(ready(init)),
-                  |y, x| {
-                      ConcreteFuture::new(y.map(move |yval| x.map(move |xval| func(yval, xval))).flatten())
-                  })
+        let mut accum = ConcreteFuture::new(ready(init));
+        for i in f.into_iter() {
+            accum = ConcreteFuture::new(accum.then(move |y| i.map(move |x| func(y, x))));
+        }
+        accum
     }
 }
 

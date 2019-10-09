@@ -32,26 +32,29 @@ impl<T> Applicative<Vec<T>, T> for VecEffect {
         vec![x]
     }
 }
-impl<X, Y> Functor<Vec<X>, Vec<Y>, X, Y> for VecEffect {
-    fn fmap(&self, f: Vec<X>, func: fn(X) -> Y) -> Vec<Y> {
+impl<'a, X, Y> Functor<'a, Vec<X>, Vec<Y>, X, Y> for VecEffect {
+    fn fmap(&self, f: Vec<X>, func: impl 'a + Fn(X) -> Y + Send + Sync) -> Vec<Y> {
         f.into_iter().map(func).collect()
     }
 }
-impl<X, Y, Z> Functor2<Vec<X>, Vec<Y>, Vec<Z>, X, Y, Z> for VecEffect {
-    fn fmap2(&self, fa: Vec<X>, fb: Vec<Y>, func: fn(&X, &Y) -> Z) -> Vec<Z> {
+impl<'a, X, Y, Z> Functor2<'a, Vec<X>, Vec<Y>, Vec<Z>, X, Y, Z> for VecEffect {
+    fn fmap2(&self, fa: Vec<X>, fb: Vec<Y>, func: impl 'a + Fn(&X, &Y) -> Z + Send + Sync) -> Vec<Z> {
         fa.into_iter().flat_map(|i| {
             let ret: Vec<Z> = fb.iter().map(|j| func(&i, j)).collect();
             ret
         }).collect()
     }
 }
-impl<X, Y> Monad<Vec<X>, Vec<Y>, X, Y> for VecEffect {
-    fn flat_map(&self, f: Vec<X>, func: fn(X) -> Vec<Y>) -> Vec<Y> {
+impl<'a, X, Y> Monad<'a, Vec<X>, Vec<Y>> for VecEffect {
+    type In = X;
+    type Out = Y;
+
+    fn flat_map(&self, f: Vec<X>, func: impl 'a + Fn(X) -> Vec<Y> + Send + Sync) -> Vec<Y> {
         f.into_iter().flat_map(func).collect()
     }
 }
-impl<X, Y> Foldable<Vec<X>, X, Y, Y> for VecEffect {
-    fn fold(&self, f: Vec<X>, init: Y, func: fn(Y, X) -> Y) -> Y {
+impl<'a, X, Y> Foldable<'a, Vec<X>, X, Y, Y> for VecEffect {
+    fn fold(&self, f: Vec<X>, init: Y, func: impl 'a + Fn(Y, X) -> Y + Send + Sync) -> Y {
         f.into_iter().fold(init, func)
     }
 }
@@ -61,44 +64,11 @@ impl<X: Clone, Y: Clone> Productable<Vec<X>, Vec<Y>, Vec<(X, Y)>, X, Y> for VecE
     }
 }
 
-fn trv_fn<X, Y, T, E, FR>((acc, eff, func): (FR, &T, fn(X) -> E), item: X) -> (FR, &T, fn(X) -> E)
-    where
-        Y: Clone,
-        T: Applicative<FR, Vec<Y>> + Functor2<E, FR, FR, Y, Vec<Y>, Vec<Y>>,
-        FR:  F<Vec<Y>>,
-        E: F<Y> {
-    // The folding function should take this effect (Vec, Future, etc.) and
-    // "combine" the results with the accumulated value.  This is what determines
-    // whether the accumulated value turns into a "negative" result (like a None,
-    // or a Future::fail(), or a Either::Err, etc.)
-
-    // First, get the returned effect from the func call:
-    let ret_ay = func(item);
-
-    // Apply a map between the returned value and the accumulated value.  The
-    // mapping function should know how to put the two together (they are the same
-    // effect type, but they each hold a different type inside).
-    let new_acc = fmap2(
-        eff,
-        ret_ay,
-        acc,
-        |fx, y| {
-            // This function adds the returned inner value onto the accumulating list
-            // inside the effect.  Functors know how to only allow this
-            // combination if both the accumulated effect and the returned
-            // effect both match up to "positive" values (like success or Some()).
-            // These next lines won't even get called unless that is the case.
-            let r = pure(VEC_EV, fx.clone());
-            combine(VEC_EV.clone(), r, y.clone())
-        });
-    (new_acc, eff, func)
-}
-
-impl<E: F<Y>, FR: F<Vec<Y>>, X, Y: Clone> Traverse<Vec<X>, E, Vec<Y>, FR, X, Y> for VecEffect {
+impl<'a, E: F<Y>, FR: F<Vec<Y>>, X, Y: Clone> Traverse<'a, Vec<X>, E, Vec<Y>, FR, X, Y> for VecEffect {
     fn traverse(&self,
-                e_effect: &(impl Applicative<FR, Vec<Y>> + Functor2<E, FR, FR, Y, Vec<Y>, Vec<Y>>),
+                e_effect: &(impl Applicative<FR, Vec<Y>> + Functor2<'a, E, FR, FR, Y, Vec<Y>, Vec<Y>> + Send + Sync),
                 fa: Vec<X>,
-                func: fn(X) -> E) -> FR {
+                func: impl Fn(X) -> E + Send + Sync) -> FR {
         // Initialize the fold to the pure value of the resulting effect (Future, Option, IO, etc.)
         // Takes an empty vector of Y to start with
         let init: FR = pure(e_effect, empty(VEC_EV));
@@ -106,11 +76,32 @@ impl<E: F<Y>, FR: F<Vec<Y>>, X, Y: Clone> Traverse<Vec<X>, E, Vec<Y>, FR, X, Y> 
         // Fold on the initial list (Vec<X>) and start with initial accumulator set to
         // A basic E<Vec<Y>> where E is the effect that will be returned from the specified
         // function (Vec, Future, Either, etc.).
-        fold(
-            VEC_EV,
-            fa,
-            (init, e_effect, func),
-            trv_fn).0
+        fold(VEC_EV, fa, init, |y, x| {
+            // The folding function should take this effect (Vec, Future, etc.) and
+            // "combine" the results with the accumulated value.  This is what determines
+            // whether the accumulated value turns into a "negative" result (like a None,
+            // or a Future::fail(), or a Either::Err, etc.)
+
+            // First, get the returned effect from the func call:
+            let ret_ay = func(x);
+
+            // Apply a map between the returned value and the accumulated value.  The
+            // mapping function should know how to put the two together (they are the same
+            // effect type, but they each hold a different type inside).
+            fmap2(
+                e_effect,
+                ret_ay,
+                y,
+                |fx, y| {
+                    // This function adds the returned inner value onto the accumulating list
+                    // inside the effect.  Functors know how to only allow this
+                    // combination if both the accumulated effect and the returned
+                    // effect both match up to "positive" values (like success or Some()).
+                    // These next lines won't even get called unless that is the case.
+                    let r = pure(VEC_EV, fx.clone());
+                    combine(VEC_EV.clone(), r, y.clone())
+                })
+        })
     }
 }
 

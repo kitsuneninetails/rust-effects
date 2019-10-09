@@ -36,23 +36,26 @@ impl<T> Applicative<Option<T>, T> for OptionEffect {
         Some(x)
     }
 }
-impl<X, Y> Functor<Option<X>, Option<Y>, X, Y> for OptionEffect {
-    fn fmap(&self, f: Option<X>, func: fn(X) -> Y) -> Option<Y> {
+impl<'a, X, Y> Functor<'a, Option<X>, Option<Y>, X, Y> for OptionEffect {
+    fn fmap(&self, f: Option<X>, func: impl 'a + Fn(X) -> Y + Send + Sync) -> Option<Y> {
         f.map(func)
     }
 }
-impl<X, Y, Z> Functor2<Option<X>, Option<Y>, Option<Z>, X, Y, Z> for OptionEffect {
-    fn fmap2(&self, fa: Option<X>, fb: Option<Y>, func: fn(&X, &Y) -> Z) -> Option<Z> {
+impl<'a, X, Y, Z> Functor2<'a, Option<X>, Option<Y>, Option<Z>, X, Y, Z> for OptionEffect {
+    fn fmap2(&self, fa: Option<X>, fb: Option<Y>, func: impl 'a + Fn(&X, &Y) -> Z + Send + Sync) -> Option<Z> {
         fa.and_then(|i| fb.map(|j| func(&i, &j)))
     }
 }
-impl<X, Y> Monad<Option<X>, Option<Y>, X, Y> for OptionEffect {
-    fn flat_map(&self, f: Option<X>, func: fn(X) -> Option<Y>) -> Option<Y> {
+impl<'a, X, Y> Monad<'a, Option<X>, Option<Y>> for OptionEffect {
+    type In = X;
+    type Out = Y;
+
+    fn flat_map(&self, f: Option<X>, func: impl 'a + Fn(X) -> Option<Y> + Send + Sync) -> Option<Y> {
         f.and_then(func)
     }
 }
-impl<X, Y: Clone> Foldable<Option<X>, X, Y, Y> for OptionEffect {
-    fn fold(&self, f: Option<X>, init: Y, func: fn(Y, X) -> Y) -> Y {
+impl<'a, X, Y: Clone> Foldable<'a, Option<X>, X, Y, Y> for OptionEffect {
+    fn fold(&self, f: Option<X>, init: Y, func: impl 'a + Fn(Y, X) -> Y + Send + Sync) -> Y {
         match f {
             Some(i) => func(init, i),
             None => init
