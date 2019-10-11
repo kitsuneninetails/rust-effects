@@ -1,12 +1,12 @@
 use super::prelude::*;
 
 impl<X, E> F<X> for Result<X, E> {}
+impl<X, E: Default> MonoidEffect<Result<X, E>> for Result<X, E> {
+    type Fct = ResultEffect;
+}
 impl<X, E> ApplicativeEffect for Result<X, E> {
     type X = X;
     type Fct = ResultEffect;
-    fn app() -> Self::Fct {
-        ResultEffect
-    }
 }
 impl<'a, X, Y, E> MonadEffect<'a, Result<X, E>, Result<Y, E>, X, Y> for Result<X, E> {
     type Fct = ResultEffect;
@@ -48,13 +48,13 @@ impl Effect for ResultEffect
 {}
 pub const RES_EV: &ResultEffect = &ResultEffect;
 
-impl<T, E: Default> Monoid<Result<T, E>> for ResultEffect {
-    fn empty(&self) -> Result<T, E> {
+impl<X, E: Default> Monoid<Result<X, E>> for ResultEffect {
+    fn empty() -> Result<X, E> {
         Err(E::default())
     }
 }
-impl<T, E> Applicative<Result<T, E>, T> for ResultEffect {
-    fn pure(&self, x: T) -> Result<T, E> {
+impl<X, E> Applicative<Result<X, E>, X> for ResultEffect {
+    fn pure(x: X) -> Result<X, E> {
         Ok(x)
     }
 }
@@ -117,13 +117,13 @@ mod tests {
 
     #[test]
     fn test_monoid() {
-        let out: Result<u32, ()> = RES_EV.empty();
+        let out: Result<u32, ()> = empty();
         assert_eq!(Err(()), out);
     }
 
     #[test]
     fn test_applicative() {
-        let out: Result::<u32, ()> = Result::<u32, ()>::app().pure(3);
+        let out: Result::<u32, ()> = <Result::<u32, ()> as ApplicativeEffect>::Fct::pure(3);
         assert_eq!(Ok(3), out);
 
         let out: Result<&str, ()> = pure("test");
@@ -140,7 +140,7 @@ mod tests {
         let res = fmap(out, |i| format!("{} World", i));
         assert_eq!("Hello World", res.unwrap());
 
-        let out: Result<String, ()> = empty(RES_EV);
+        let out: Result<String, ()> = empty();
         let res = fmap(out, |i| format!("{} World", i));
         assert_eq!(Err(()), res);
 
@@ -161,7 +161,7 @@ mod tests {
         let res = flat_map(out, |i| Ok(i + 4));
         assert_eq!(Ok(7), res);
 
-        let out: Result<String, ()> = empty(RES_EV);
+        let out: Result<String, ()> = empty();
         let res = flat_map(out, |i| Ok(format!("{} World", i)));
         assert_eq!(Err(()), res);
 
@@ -175,7 +175,7 @@ mod tests {
         assert_eq!(Ok((3, 5)), res);
 
         let out1: Result<u32, ()> = pure(3);
-        let out2: Result<u32, ()> = empty(RES_EV);
+        let out2: Result<u32, ()> = empty();
         let res = product(out1, out2);
         assert_eq!(Err(()), res);
     }

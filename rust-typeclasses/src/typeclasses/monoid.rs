@@ -1,83 +1,51 @@
 use super::Effect;
 
-pub trait Monoid<T> : Effect {
-    fn empty(&self) -> T;
+pub trait Monoid<M> : Effect {
+    fn empty() -> M;
 }
-pub fn empty<T>(ev: &impl Monoid<T>) -> T {
-    ev.empty()
+
+pub trait MonoidEffect<M> {
+    type Fct: Monoid<M>;
+}
+
+pub fn empty<X: MonoidEffect<X>>() -> X {
+    X::Fct::empty()
+}
+
+macro_rules! monoid_impl {
+    ($m:ty, $v:expr, $($t:ty)+) => ($(
+        impl Monoid<$t> for $m {
+            fn empty() -> $t { $v }
+        }
+    )+)
+}
+
+macro_rules! monoid_eff_impl {
+    ($m:ty, $me:expr, $($t:ty)+) => ($(
+        impl MonoidEffect<$t> for $t {
+            type Fct = $m;
+        }
+    )+)
 }
 
 pub struct StringMonoid;
 impl Effect for StringMonoid {}
-impl Monoid<String> for StringMonoid {
-    fn empty(&self) -> String { "".to_string() }
-}
 
 pub struct IntAddMonoid;
 impl Effect for IntAddMonoid {}
-impl Monoid<u8> for IntAddMonoid {
-    fn empty(&self) -> u8 { 0 }
-}
-impl Monoid<i8> for IntAddMonoid {
-    fn empty(&self) -> i8 { 0 }
-}
-impl Monoid<u16> for IntAddMonoid {
-    fn empty(&self) -> u16 { 0 }
-}
-impl Monoid<i16> for IntAddMonoid {
-    fn empty(&self) -> i16 { 0 }
-}
-impl Monoid<u32> for IntAddMonoid {
-    fn empty(&self) -> u32 { 0 }
-}
-impl Monoid<i32> for IntAddMonoid {
-    fn empty(&self) -> i32 { 0 }
-}
-impl Monoid<u64> for IntAddMonoid {
-    fn empty(&self) -> u64 { 0 }
-}
-impl Monoid<i64> for IntAddMonoid {
-    fn empty(&self) -> i64 { 0 }
-}
-impl Monoid<f32> for IntAddMonoid {
-    fn empty(&self) -> f32 { 0.0 }
-}
-impl Monoid<f64> for IntAddMonoid {
-    fn empty(&self) -> f64 { 0.0 }
-}
 
 pub struct IntMulMonoid;
 impl Effect for IntMulMonoid {}
-impl Monoid<u8> for IntMulMonoid {
-    fn empty(&self) -> u8 { 1 }
-}
-impl Monoid<i8> for IntMulMonoid {
-    fn empty(&self) -> i8 { 1 }
-}
-impl Monoid<u16> for IntMulMonoid {
-    fn empty(&self) -> u16 { 1 }
-}
-impl Monoid<i16> for IntMulMonoid {
-    fn empty(&self) -> i16 { 1 }
-}
-impl Monoid<u32> for IntMulMonoid {
-    fn empty(&self) -> u32 { 1 }
-}
-impl Monoid<i32> for IntMulMonoid {
-    fn empty(&self) -> i32 { 1 }
-}
-impl Monoid<u64> for IntMulMonoid {
-    fn empty(&self) -> u64 { 1 }
-}
-impl Monoid<i64> for IntMulMonoid {
-    fn empty(&self) -> i64 { 1 }
-}
-impl Monoid<f32> for IntMulMonoid {
-    fn empty(&self) -> f32 { 1.0 }
-}
-impl Monoid<f64> for IntMulMonoid {
-    fn empty(&self) -> f64 { 1.0 }
-}
+
+monoid_impl! { StringMonoid, "".to_string(), String }
+monoid_impl! { IntAddMonoid, 0, u8 u16 u32 u64 i8 i16 i32 i64 }
+monoid_impl! { IntAddMonoid, 0.0, f32 f64 }
+
+monoid_impl! { IntMulMonoid, 1, u8 u16 u32 u64 i8 i16 i32 i64 }
+monoid_impl! { IntMulMonoid, 1.0, f32 f64 }
+
+monoid_eff_impl! { StringMonoid, StringMonoid, String }
+monoid_eff_impl! { IntAddMonoid, IntAddMonoid, u8 u16 u32 u64 i8 i16 i32 i64 f32 f64 }
 
 #[cfg(test)]
 mod tests {
@@ -85,25 +53,25 @@ mod tests {
 
     #[test]
     fn test_strings() {
-        let out = StringMonoid.empty();
+        let out = StringMonoid::empty();
         assert_eq!(out, "");
     }
 
     #[test]
     fn test_ints() {
-        let out: i32 = IntAddMonoid.empty();
+        let out: i32 = IntAddMonoid::empty();
         assert_eq!(out, 0);
 
-        let out: u32 = IntMulMonoid.empty();
+        let out: u32 = IntMulMonoid::empty();
         assert_eq!(out, 1);
     }
 
     #[test]
     fn test_functionals() {
-        let out: i32 = empty(&IntAddMonoid);
+        let out: i32 = empty();
         assert_eq!(out, 0);
 
-        let out = empty(&StringMonoid);
+        let out: String = empty();
         assert_eq!(out, "");
     }
 }

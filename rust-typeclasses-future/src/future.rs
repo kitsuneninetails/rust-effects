@@ -40,12 +40,12 @@ pub struct ConcreteFuture<'a, X> {
 }
 
 impl<'a, X> F<X> for ConcreteFuture<'a, X> {}
+impl<'a, X: 'a + Send + Sync + Default> MonoidEffect<ConcreteFuture<'a, X>> for ConcreteFuture<'a, X> {
+    type Fct = FutureEffect;
+}
 impl<'a, X: 'a + Send + Sync> ApplicativeEffect for ConcreteFuture<'a, X> {
     type X = X;
     type Fct = FutureEffect;
-    fn app() -> Self::Fct {
-        FutureEffect
-    }
 }
 impl<'a, X, Y> MonadEffect<'a, ConcreteFuture<'a, X>, ConcreteFuture<'a, Y>, X, Y> for ConcreteFuture<'a, X>
     where
@@ -116,7 +116,7 @@ impl Effect for FutureEffect {}
 pub const FUT_EV: &FutureEffect = &FutureEffect;
 
 impl<'a, X: 'a + Default + Send> Monoid<ConcreteFuture<'a, X>> for FutureEffect {
-    fn empty(&self) -> ConcreteFuture<'a, X> {
+    fn empty() -> ConcreteFuture<'a, X> {
         ConcreteFuture::new(ready(X::default()))
     }
 }
@@ -142,7 +142,7 @@ impl<'a, X1, X2, R, T> Semigroup<
 impl<'a, X> Applicative<ConcreteFuture<'a, X>, X> for FutureEffect
     where
         X:  'a + Send + Sync {
-    fn pure(&self, x: X) -> ConcreteFuture<'a, X> {
+    fn pure(x: X) -> ConcreteFuture<'a, X> {
         ConcreteFuture::new(ready(x))
     }
 }
@@ -271,7 +271,7 @@ mod tests {
     #[test]
     fn test_monoid() {
         block_on(async {
-            let f: ConcreteFuture<u32> = empty(FUT_EV);
+            let f: ConcreteFuture<u32> = empty();
             assert_eq!(f.await, 0);
         });
     }
@@ -315,7 +315,7 @@ mod tests {
 
         block_on(async {
             let fs = vec![
-                ConcreteFuture::<u32>::app().pure(3u32),
+                pure(3),
                 ConcreteFuture::new(ready(10u32)),
                 ConcreteFuture::new(lazy(|_| 4u32))
             ];

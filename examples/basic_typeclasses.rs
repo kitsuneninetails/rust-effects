@@ -22,7 +22,7 @@ fn main() {
     println!("Result of flatmap is {:?}", res);
 
     println!("If we combine it with an 'empty': {:?}",
-             combine(OP_EV.sg(IADD_SG), res.clone(), empty(OP_EV)));
+             combine(OP_EV.sg(IADD_SG), res.clone(), empty()));
 
     println!("If we combine it with a Some(5) with Add: {:?}",
              combine(OP_EV.sg(IADD_SG), res.clone(), Some(5u32)));

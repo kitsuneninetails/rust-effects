@@ -1,13 +1,12 @@
 use super::prelude::*;
 
 impl<X> F<X> for Option<X> {}
-
+impl<X> MonoidEffect<Option<X>> for Option<X> {
+    type Fct = OptionEffect;
+}
 impl<X> ApplicativeEffect for Option<X> {
     type X = X;
     type Fct = OptionEffect;
-    fn app() -> Self::Fct {
-        OptionEffect
-    }
 }
 impl<'a, X, Y> MonadEffect<'a, Option<X>, Option<Y>, X, Y> for Option<X> {
     type Fct = OptionEffect;
@@ -50,13 +49,13 @@ impl Effect for OptionEffect {}
 
 pub const OP_EV: &OptionEffect = &OptionEffect;
 
-impl<T> Monoid<Option<T>> for OptionEffect {
-    fn empty(&self) -> Option<T> {
+impl<X> Monoid<Option<X>> for OptionEffect {
+    fn empty() -> Option<X> {
         None
     }
 }
-impl<T> Applicative<Option<T>, T> for OptionEffect {
-    fn pure(&self, x: T) -> Option<T> {
+impl<X> Applicative<Option<X>, X> for OptionEffect {
+    fn pure(x: X) -> Option<X> {
         Some(x)
     }
 }
@@ -119,13 +118,13 @@ mod tests {
 
     #[test]
     fn test_monoid() {
-        let out: Option<u32> = empty(OP_EV);
+        let out: Option<u32> = empty();
         assert_eq!(None, out);
     }
 
     #[test]
     fn test_applicative() {
-        let out = Option::<u32>::app().pure(3);
+        let out = <Option::<u32> as ApplicativeEffect>::Fct::pure(3);
         assert_eq!(Some(3), out);
 
         let out: Option<&str> = pure("test");
@@ -134,7 +133,7 @@ mod tests {
 
     #[test]
     fn test_functor() {
-        let out = Option::<u32>::app().pure(3);
+        let out = <Option::<u32> as ApplicativeEffect>::Fct::pure(3);
         let res = fmap(out, |i| i + 4);
         assert_eq!(Some(7), res);
 
@@ -142,7 +141,7 @@ mod tests {
         let res = fmap(out, |i| format!("{} World", i));
         assert_eq!("Hello World", res.unwrap());
 
-        let out: Option<String> = empty(OP_EV);
+        let out: Option<u32> = empty();
         let res = fmap(out, |i| format!("{} World", i));
         assert_eq!(None, res);
 
@@ -158,7 +157,7 @@ mod tests {
         let res = flat_map(out, |i| Some(i + 4));
         assert_eq!(Some(7), res);
 
-        let out: Option<u32> = empty(OP_EV);
+        let out: Option<u32> = empty();
         let res = flat_map(out, |i| Some(i + 4));
         assert_eq!(None, res);
 
@@ -166,7 +165,7 @@ mod tests {
         let res = fold(out, 0, |init, i| init + i);
         assert_eq!(2, res);
 
-        let out: Option<u32> = empty(OP_EV);
+        let out: Option<u32> = empty();
         let res = fold(out, 0, |init, i| init + i);
         assert_eq!(0, res);
     }
@@ -179,7 +178,7 @@ mod tests {
         assert_eq!(Some((3, 5)), res);
 
         let out1: Option<u32> = pure(3);
-        let out2: Option<u32> = empty(OP_EV);
+        let out2: Option<u32> = empty();
         let res = product(out1, out2);
         assert_eq!(None, res);
     }
