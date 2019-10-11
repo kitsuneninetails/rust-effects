@@ -1,6 +1,11 @@
 use super::prelude::*;
 
 impl<X, E> F<X> for Result<X, E> {}
+impl<'a, X, X2, XR, E> SemigroupEffect<Result<X, E>, Result<X2, E>, Result<XR, E>> for Result<X, E>
+    where
+        X: SemigroupEffect<X, X2, XR> {
+    type Fct = ResultEffect;
+}
 impl<X, E: Default> MonoidEffect<Result<X, E>> for Result<X, E> {
     type Fct = ResultEffect;
 }
@@ -24,25 +29,20 @@ impl<'a, X: Clone, Y: Clone, E> ProductableEffect<Result<X,E>, Result<Y,E>, Resu
     type Fct = ResultEffect;
 }
 
-impl<X, X2, XR, E, T: Semigroup<X, X2, XR>> Semigroup<
-    Result<X, E>,
-    Result<X2, E>,
-    Result<XR, E>> for CombineInnerSemigroup<X, X2, XR, T> {
-    fn combine(self, a: Result<X, E>, b: Result<X2, E>) -> Result<XR, E> {
-        a.and_then(|i| b.map(|j| self.t.combine(i, j)))
-    }
-}
-
 pub struct ResultEffect;
-impl ResultEffect {
-    pub fn sg<X, X2, XR, T: Semigroup<X, X2, XR>>(&self, ev: T) -> CombineInnerSemigroup<X, X2, XR, T>{
-        CombineInnerSemigroup::apply(ev)
-    }
-}
 impl Effect for ResultEffect
 {}
-pub const RES_EV: &ResultEffect = &ResultEffect;
 
+impl<X, X2, XR, E> Semigroup<
+    Result<X, E>,
+    Result<X2, E>,
+    Result<XR, E>> for ResultEffect
+    where
+        X: SemigroupEffect<X, X2, XR> {
+    fn combine(a: Result<X, E>, b: Result<X2, E>) -> Result<XR, E> {
+        a.and_then(|i| b.map(|j| combine(i, j)))
+    }
+}
 impl<X, E: Default> Monoid<Result<X, E>> for ResultEffect {
     fn empty() -> Result<X, E> {
         Err(E::default())
@@ -94,19 +94,19 @@ mod tests {
         let a = Ok(3);
         let b = Ok(5);
 
-        let out: Result<i32, ()> = combine(RES_EV.sg(IADD_SG), a, b);
+        let out: Result<i32, ()> = combine(a, b);
         assert_eq!(Ok(8), out);
 
         let a = Ok(3);
         let b = Err(());
 
-        let out = combine(RES_EV.sg(IADD_SG), a, b);
+        let out = combine(a, b);
         assert_eq!(Err(()), out);
 
         let a = Ok("Hello");
         let b = Ok(" World".to_string());
 
-        let out: Result<String, ()> = combine(RES_EV.sg(STR_SG), a, b);
+        let out: Result<String, ()> = combine(a, b);
         assert_eq!("Hello World", out.unwrap());
     }
 
@@ -118,7 +118,7 @@ mod tests {
 
     #[test]
     fn test_applicative() {
-        let out: Result::<u32, ()> = <Result::<u32, ()> as ApplicativeEffect>::Fct::pure(3);
+        let out = pure::<Result::<u32, ()>>(3);
         assert_eq!(Ok(3), out);
 
         let out: Result<&str, ()> = pure("test");

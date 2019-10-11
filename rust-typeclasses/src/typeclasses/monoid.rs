@@ -1,5 +1,14 @@
 use super::Effect;
 
+/// The Monoid typeclass.  This provides the concept of a "zero" or "empty" value.  This should
+/// function as the identity for the typeclass.  Combined with Semigroup, this typeclass qualifies
+/// as a mathematical Monoid, with an associative operation (provided by Semigroup's `combine`
+/// method) which can combine values and an identity value for which the following holds true
+/// given a value A of type T and an identity value I of type T:
+///
+/// A: T · I: V == A: T
+///
+/// for all legal values in type T.
 pub trait Monoid<M> : Effect {
     fn empty() -> M;
 }

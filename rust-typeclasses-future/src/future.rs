@@ -1,31 +1,10 @@
 use rust_typeclasses::prelude::*;
 use futures::prelude::*;
-use futures::future::{ready, BoxFuture};
+use futures::future::{ready, BoxFuture, FutureExt};
 use futures::Poll;
 use futures::task::Context;
 use std::marker::PhantomData;
 use std::pin::Pin;
-
-pub struct FutureInnerSemigroup<'a, X, X2, XR, T: 'static> {
-    pub t: T,
-    _p1: PhantomData<X>,
-    _p2: PhantomData<X2>,
-    _p3: PhantomData<XR>,
-    _p4: PhantomData<&'a()>
-}
-
-impl<'a, X, X2, XR, T: 'static> FutureInnerSemigroup<'a, X, X2, XR, T> {
-    pub fn apply(t: T) -> Self {
-        FutureInnerSemigroup {
-            t,
-            _p1: PhantomData,
-            _p2: PhantomData,
-            _p3: PhantomData,
-            _p4: PhantomData,
-        }
-    }
-}
-impl<'a, X, X2, XR, T: 'static> Effect for FutureInnerSemigroup<'a, X, X2, XR, T>{}
 
 pub struct ConcreteFuture<'a, X> {
     pub inner: BoxFuture<'a, X>
@@ -40,6 +19,16 @@ pub struct ConcreteFuture<'a, X> {
 }
 
 impl<'a, X> F<X> for ConcreteFuture<'a, X> {}
+impl<'a, X, X2, XR> SemigroupEffect<
+    ConcreteFuture<'a, X>,
+    ConcreteFuture<'a, X2>,
+    ConcreteFuture<'a, XR>> for ConcreteFuture<'a, X>
+    where
+        X: 'a + SemigroupEffect<X, X2, XR> + Send + Sync,
+        X2: 'a + Send + Sync,
+        XR: 'a + Send + Sync {
+    type Fct = FutureEffect;
+}
 impl<'a, X: 'a + Send + Sync + Default> MonoidEffect<ConcreteFuture<'a, X>> for ConcreteFuture<'a, X> {
     type Fct = FutureEffect;
 }
@@ -101,11 +90,6 @@ impl<'a, X> Future for ConcreteFuture<'a, X> {
 
 #[derive(Clone, Debug)]
 pub struct FutureEffect;
-impl FutureEffect {
-    pub fn sg<X, X2, XR, T: Semigroup<X, X2, XR>>(&self, ev: T) -> FutureInnerSemigroup<X, X2, XR, T>{
-        FutureInnerSemigroup::apply(ev)
-    }
-}
 impl Effect for FutureEffect {}
 
 pub const FUT_EV: &FutureEffect = &FutureEffect;
@@ -116,19 +100,17 @@ impl<'a, X: 'a + Default + Send> Monoid<ConcreteFuture<'a, X>> for FutureEffect 
     }
 }
 
-impl<'a, X1, X2, R, T> Semigroup<
+impl<'a, X1, X2, R> Semigroup<
     ConcreteFuture<'a, X1>,
     ConcreteFuture<'a, X2>,
-    ConcreteFuture<'a, R>> for FutureInnerSemigroup<'a, X1, X2, R, T>
+    ConcreteFuture<'a, R>> for FutureEffect
     where
-        X1: 'a + Send + Sync,
+        X1: SemigroupEffect<X1, X2, R> + 'a + Send + Sync,
         X2: 'a + Send + Sync,
-        R: 'a + Send + Sync,
-        T: Semigroup<X1, X2, R> + Send + Sync {
-    fn combine(self,
-               a: ConcreteFuture<'a, X1>,
+        R: 'a + Send + Sync {
+    fn combine(a: ConcreteFuture<'a, X1>,
                b: ConcreteFuture<'a, X2>) -> ConcreteFuture<'a, R> {
-        let fr = a.then(move |i| b.map(move |j| combine(self.t, i, j)));
+        let fr = a.then(move |i| b.map(move |j| combine(i, j)));
 
         ConcreteFuture::new(fr)
     }
@@ -253,7 +235,7 @@ mod tests {
         block_on(async {
             let f1: ConcreteFuture<u32> = pure(1);
             let f2: ConcreteFuture<u32> = pure(2u32);
-            let fr = combine(FUT_EV.sg(IADD_SG), f1, f2);
+            let fr = combine(f1, f2);
             assert_eq!(fr.await, 3);
         });
     }

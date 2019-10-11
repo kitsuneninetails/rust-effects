@@ -1,6 +1,9 @@
 use super::prelude::*;
 
 impl<X> F<X> for Vec<X> {}
+impl<'a, X> SemigroupEffect<Vec<X>, Vec<X>, Vec<X>> for Vec<X> {
+    type Fct = VecEffect;
+}
 impl<X> MonoidEffect<Vec<X>> for Vec<X> {
     type Fct = VecEffect;
 }
@@ -39,7 +42,7 @@ pub struct VecEffect;
 impl Effect for VecEffect {}
 
 impl<X> Semigroup<Vec<X>, Vec<X>, Vec<X>> for VecEffect {
-    fn combine(self, a: Vec<X>, b: Vec<X>) -> Vec<X> {
+    fn combine(a: Vec<X>, b: Vec<X>) -> Vec<X> {
         let mut ret = a;
         ret.extend(b);
         ret
@@ -126,7 +129,7 @@ impl<'a, E, FR, X, Y, T> Traverse<'a, Vec<X>, E, Vec<Y>, FR, X, Y> for VecEffect
                     // effect both match up to "positive" values (like success or Some()).
                     // These next lines won't even get called unless that is the case.
                     let r = pure::<Vec<Y>>(fx);
-                    combine(VecEffect, r, y)
+                    combine(r, y)
                 })
         })
     }
@@ -141,19 +144,19 @@ mod tests {
         let a = vec![3, 4, 5];
         let b = vec![6, 7, 8];
 
-        let out = combine(VecEffect, a, b);
+        let out = combine(a, b);
         assert_eq!(vec![3, 4, 5, 6, 7, 8], out);
 
         let a = vec![3, 4, 5];
         let b = vec![];
 
-        let out = combine(VecEffect, a, b);
+        let out = combine(a, b);
         assert_eq!(vec![3, 4, 5], out);
 
         let a = vec!["Hello".to_string()];
         let b = vec!["World".to_string()];
 
-        let out = combine(VecEffect, a, b);
+        let out = combine(a, b);
         assert_eq!(vec![format!("Hello"), format!("World")], out);
     }
 

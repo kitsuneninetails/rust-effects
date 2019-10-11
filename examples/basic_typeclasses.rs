@@ -22,13 +22,13 @@ fn main() {
     println!("Result of flatmap is {:?}", res);
 
     println!("If we combine it with an 'empty': {:?}",
-             combine(OP_EV.sg(IADD_SG), res.clone(), empty()));
+             combine(res.clone(), empty()));
 
     println!("If we combine it with a Some(5) with Add: {:?}",
-             combine(OP_EV.sg(IADD_SG), res.clone(), Some(5u32)));
+             combine(res.clone(), Some(5u32)));
 
-    println!("If we combine it with a Some(5) with Mul: {:?}",
-             combine(OP_EV.sg(IMUL_SG), res.clone(), Some(5u32)));
+    println!("BROKEN - If we combine it with a Some(5) with Mul: {:?}",
+             combine(res.clone(), Some(5u32)));
 
     let op_4 = func_which_takes_monad_and_addables(Some(3), 1);
     println!("Some(3) passed to general add1 func -> {:?}", op_4);

@@ -1,6 +1,11 @@
 use super::prelude::*;
 
 impl<X> F<X> for Option<X> {}
+impl<'a, X, X2, XR> SemigroupEffect<Option<X>, Option<X2>, Option<XR>> for Option<X>
+    where
+        X: SemigroupEffect<X, X2, XR> {
+    type Fct = OptionEffect;
+}
 impl<X> MonoidEffect<Option<X>> for Option<X> {
     type Fct = OptionEffect;
 }
@@ -24,26 +29,18 @@ impl<'a, X: Clone, Y: Clone> ProductableEffect<Option<X>, Option<Y>, Option<(X, 
     type Fct = OptionEffect;
 }
 
-impl<X, X2, XR, T: Semigroup<X, X2, XR>> Semigroup<
-    Option<X>,
-    Option<X2>,
-    Option<XR>> for CombineInnerSemigroup<X, X2, XR, T> {
-    fn combine(self, a: Option<X>, b: Option<X2>) -> Option<XR> {
-        a.and_then(|i| b.map(|j| self.t.combine(i, j)))
-    }
-}
-
 pub struct OptionEffect;
-impl OptionEffect {
-    pub fn sg<X, X2, XR, T: Semigroup<X, X2, XR>>(&self, ev: T) -> CombineInnerSemigroup<X, X2, XR, T>{
-        CombineInnerSemigroup::apply(ev)
-    }
-}
 
 impl Effect for OptionEffect {}
 
-pub const OP_EV: &OptionEffect = &OptionEffect;
 
+impl<X, X2, XR> Semigroup<Option<X>, Option<X2>, Option<XR>> for OptionEffect
+    where
+        X: SemigroupEffect<X, X2, XR> {
+    fn combine(a: Option<X>, b: Option<X2>) -> Option<XR> {
+        a.and_then(|i| b.map(|j| combine(i, j)))
+    }
+}
 impl<X> Monoid<Option<X>> for OptionEffect {
     fn empty() -> Option<X> {
         None
@@ -95,19 +92,19 @@ mod tests {
         let a = Some(3);
         let b = Some(5);
 
-        let out = combine(OP_EV.sg(IADD_SG), a, b);
+        let out = combine(a, b);
         assert_eq!(Some(8), out);
 
         let a = Some(3);
         let b = None;
 
-        let out = combine(OP_EV.sg(IADD_SG), a, b);
+        let out = combine(a, b);
         assert_eq!(None, out);
 
         let a = Some("Hello");
         let b = Some(" World".to_string());
 
-        let out = combine(OP_EV.sg(STR_SG), a, b);
+        let out = combine(a, b);
         assert_eq!("Hello World", out.unwrap());
     }
 
@@ -119,7 +116,7 @@ mod tests {
 
     #[test]
     fn test_applicative() {
-        let out = <Option::<u32> as ApplicativeEffect>::Fct::pure(3);
+        let out = pure::<Option::<u32>>(3);
         assert_eq!(Some(3), out);
 
         let out: Option<&str> = pure("test");
@@ -128,7 +125,7 @@ mod tests {
 
     #[test]
     fn test_functor() {
-        let out = <Option::<u32> as ApplicativeEffect>::Fct::pure(3);
+        let out: Option<u32> = pure(3);
         let res = fmap(out, |i| i + 4);
         assert_eq!(Some(7), res);
 

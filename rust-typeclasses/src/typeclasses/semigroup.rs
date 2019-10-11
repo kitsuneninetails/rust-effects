@@ -1,5 +1,4 @@
 use std::marker::PhantomData;
-use std::ops::{Add, Mul};
 use super::Effect;
 
 /// Semigroup Typeclass
@@ -22,55 +21,63 @@ use super::Effect;
 /// The `ToString` trait is another that can make use of this (where one parameter is a string slice
 /// while the other is an owned string).
 pub trait Semigroup<T, T2, TR>: Effect {
-    fn combine(self, a: T, b: T2) -> TR;
+    fn combine(a: T, b: T2) -> TR;
 }
 
-pub fn combine<T, T2, TR>(t: impl Semigroup<T, T2, TR>, a: T, b: T2) -> TR {
-    t.combine(a, b)
+pub trait SemigroupEffect<T, T2, TR> {
+    type Fct: Semigroup<T, T2, TR>;
 }
+
+pub fn combine<T, T2, TR>(a: T, b: T2) -> TR
+    where
+        T: SemigroupEffect<T, T2, TR> {
+    T::Fct::combine(a, b)
+}
+
+// String types
 
 pub struct StringSemigroup;
-pub const STR_SG: StringSemigroup = StringSemigroup;
+impl<T: ToString, T2: ToString> SemigroupEffect<T, T2, String> for String {
+    type Fct=StringSemigroup;
+}
+impl<'a, T: ToString, T2: ToString> SemigroupEffect<T, T2, String> for &'a str {
+    type Fct=StringSemigroup;
+}
+
 impl Effect for StringSemigroup {}
 
 impl<T: ToString, T2: ToString> Semigroup<T, T2, String> for StringSemigroup {
-    fn combine(self, a: T, b: T2) -> String { format!("{}{}", a.to_string(), b.to_string()) }
+    fn combine(a: T, b: T2) -> String { format!("{}{}", a.to_string(), b.to_string()) }
+}
+
+// Integer and Rational types (add)
+
+macro_rules! sg_impl {
+    ($m:ty, $op:tt, $($t:ty)+) => ($(
+        impl Semigroup<$t, $t, $t> for $m {
+            fn combine(a: $t, b: $t) -> $t { a $op b }
+        }
+    )+)
+}
+
+macro_rules! sg_eff_impl {
+    ($m:ty, $($t:ty)+) => ($(
+        impl SemigroupEffect<$t, $t, $t> for $t {
+            type Fct = $m;
+        }
+    )+)
 }
 
 pub struct IntAddSemigroup;
-pub const IADD_SG: IntAddSemigroup = IntAddSemigroup;
 impl Effect for IntAddSemigroup {}
 
-impl<T: Add<Output=T>> Semigroup<T, T, T> for IntAddSemigroup {
-    fn combine(self, a: T, b: T) -> T { a + b }
-}
-
 pub struct IntMulSemigroup;
-pub const IMUL_SG: IntMulSemigroup = IntMulSemigroup;
 impl Effect for IntMulSemigroup {}
 
-impl<T: Mul<Output=T>> Semigroup<T, T, T> for IntMulSemigroup {
-    fn combine(self, a: T, b: T) -> T { a * b }
-}
+sg_impl! { IntAddSemigroup, +, u8 u16 u32 u64 i8 i16 i32 i64 f32 f64}
+sg_eff_impl! { IntAddSemigroup, u8 u16 u32 u64 i8 i16 i32 i64 f32 f64}
 
-pub struct CombineInnerSemigroup<X, X2, XR, T: Semigroup<X, X2, XR>> {
-    pub t: T,
-    _p1: PhantomData<X>,
-    _p2: PhantomData<X2>,
-    _p3: PhantomData<XR>
-}
-impl<X, X2, XR, T: Semigroup<X, X2, XR>> Effect for CombineInnerSemigroup<X, X2, XR, T> {}
-
-impl<X, X2, XR, T: Semigroup<X, X2, XR>> CombineInnerSemigroup<X, X2, XR, T> {
-    pub fn apply(t: T) -> Self {
-        CombineInnerSemigroup {
-            t,
-            _p1: PhantomData,
-            _p2: PhantomData,
-            _p3: PhantomData
-        }
-    }
-}
+sg_impl! { IntMulSemigroup, *, u8 u16 u32 u64 i8 i16 i32 i64 f32 f64}
 
 #[cfg(test)]
 mod tests {
@@ -78,25 +85,25 @@ mod tests {
 
     #[test]
     fn string_combine() {
-        let out = STR_SG.combine("Hello", format!(" World"));
+        let out = combine("Hello", format!(" World"));
         assert_eq!("Hello World", out);
     }
 
     #[test]
     fn int_combine() {
-        let out = IADD_SG.combine(1, 2);
+        let out = combine(1, 2);
         assert_eq!(3, out);
 
-        let out = Semigroup::combine(IMUL_SG, 1.2, 2.2);
+        let out = IntMulSemigroup::combine(1.2, 2.2);
         assert_eq!(2.64, out);
     }
 
     #[test]
     fn functional_combine() {
-        let out = combine(IMUL_SG, 1, 2);
+        let out = IntMulSemigroup::combine(1, 2);
         assert_eq!(2, out);
 
-        let out = combine(IADD_SG, 5, 4);
+        let out = combine(5, 4);
         assert_eq!(9, out);
     }
 }
