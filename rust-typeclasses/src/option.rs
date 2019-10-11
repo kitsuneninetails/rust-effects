@@ -1,6 +1,14 @@
 use super::prelude::*;
 
 impl<X> F<X> for Option<X> {}
+
+impl<X> ApplicativeEffect for Option<X> {
+    type X = X;
+    type Fct = OptionEffect;
+    fn app() -> Self::Fct {
+        OptionEffect
+    }
+}
 impl<'a, X, Y> MonadEffect<'a, Option<X>, Option<Y>, X, Y> for Option<X> {
     type Fct = OptionEffect;
     fn monad(&self) -> Self::Fct { OptionEffect }
@@ -117,20 +125,20 @@ mod tests {
 
     #[test]
     fn test_applicative() {
-        let out = OP_EV.pure(3);
+        let out = Option::<u32>::app().pure(3);
         assert_eq!(Some(3), out);
 
-        let out = pure(OP_EV, "test");
+        let out: Option<&str> = pure("test");
         assert_eq!(Some("test"), out);
     }
 
     #[test]
     fn test_functor() {
-        let out: Option<u32> = pure(OP_EV, 3);
+        let out = Option::<u32>::app().pure(3);
         let res = fmap(out, |i| i + 4);
         assert_eq!(Some(7), res);
 
-        let out: Option<String> = pure(OP_EV, format!("Hello"));
+        let out: Option<String> = pure(format!("Hello"));
         let res = fmap(out, |i| format!("{} World", i));
         assert_eq!("Hello World", res.unwrap());
 
@@ -138,15 +146,15 @@ mod tests {
         let res = fmap(out, |i| format!("{} World", i));
         assert_eq!(None, res);
 
-        let out1: Option<u32> = pure(OP_EV, 3);
-        let out2: Option<String> = pure(OP_EV, format!("Bowls"));
+        let out1: Option<u32> = pure(3);
+        let out2: Option<String> = pure(format!("Bowls"));
         let res = fmap2(out1, out2, |i, j| format!("{} {} of salad", i + 4, j));
         assert_eq!("7 Bowls of salad", res.unwrap());
     }
 
     #[test]
     fn test_monad() {
-        let out: Option<u32> = pure(OP_EV, 3);
+        let out: Option<u32> = pure(3);
         let res = flat_map(out, |i| Some(i + 4));
         assert_eq!(Some(7), res);
 
@@ -154,7 +162,7 @@ mod tests {
         let res = flat_map(out, |i| Some(i + 4));
         assert_eq!(None, res);
 
-        let out: Option<u32> = pure(OP_EV, 2);
+        let out: Option<u32> = pure(2);
         let res = fold(out, 0, |init, i| init + i);
         assert_eq!(2, res);
 
@@ -165,12 +173,12 @@ mod tests {
 
     #[test]
     fn test_product() {
-        let out1: Option<u32> = pure(OP_EV, 3);
-        let out2: Option<u32> = pure(OP_EV, 5);
+        let out1: Option<u32> = pure(3);
+        let out2: Option<u32> = pure(5);
         let res = product(out1, out2);
         assert_eq!(Some((3, 5)), res);
 
-        let out1: Option<u32> = pure(OP_EV, 3);
+        let out1: Option<u32> = pure(3);
         let out2: Option<u32> = empty(OP_EV);
         let res = product(out1, out2);
         assert_eq!(None, res);

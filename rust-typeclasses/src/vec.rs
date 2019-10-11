@@ -1,6 +1,13 @@
 use super::prelude::*;
 
 impl<X> F<X> for Vec<X> {}
+impl<X> ApplicativeEffect for Vec<X> {
+    type X = X;
+    type Fct = VecEffect;
+    fn app() -> Self::Fct {
+        VecEffect
+    }
+}
 impl<'a, X, Y> MonadEffect<'a, Vec<X>, Vec<Y>, X, Y> for Vec<X> {
     type Fct = VecEffect;
     fn monad(&self) -> Self::Fct { VecEffect }
@@ -24,10 +31,11 @@ impl<'a, X: Clone, Y: Clone> ProductableEffect<Vec<X>, Vec<Y>, Vec<(X, Y)>, X, Y
     type Fct = VecEffect;
     fn productable(&self) -> Self::Fct { VecEffect }
 }
-impl<'a, E, FR, X, Y> TraverseEffect<'a, Vec<X>, E, Vec<Y>, FR, X, Y> for Vec<X>
+impl<'a, E, FR, X, Y, T> TraverseEffect<'a, Vec<X>, E, Vec<Y>, FR, X, Y> for Vec<X>
     where
         E: F<Y> + Functor2Effect<'a, E, FR, FR, Y, Vec<Y>, Vec<Y>>,
-        FR: F<Vec<Y>> {
+        FR: F<Vec<Y>> + ApplicativeEffect<X=Vec<Y>, Fct=T>,
+        T: Applicative<FR, Vec<Y>> {
     type Fct = VecEffect;
     fn traverse(&self) -> Self::Fct { VecEffect }
 }
@@ -91,17 +99,17 @@ impl<X: Clone, Y: Clone> Productable<Vec<X>, Vec<Y>, Vec<(X, Y)>, X, Y> for VecE
     }
 }
 
-impl<'a, E, FR, X, Y> Traverse<'a, Vec<X>, E, Vec<Y>, FR, X, Y> for VecEffect
+impl<'a, E, FR, X, Y, T> Traverse<'a, Vec<X>, E, Vec<Y>, FR, X, Y> for VecEffect
     where
         E: F<Y> + Functor2Effect<'a, E, FR, FR, Y, Vec<Y>, Vec<Y>>,
-        FR: F<Vec<Y>> {
+        FR: F<Vec<Y>> + ApplicativeEffect<X=Vec<Y>, Fct=T>,
+        T: Applicative<FR, Vec<Y>>{
     fn traverse(&self,
-                e_effect: &(impl Applicative<FR, Vec<Y>> + Send + Sync),
                 fa: Vec<X>,
                 func: impl Fn(X) -> E + Send + Sync) -> FR {
         // Initialize the fold to the pure value of the resulting effect (Future, Option, IO, etc.)
         // Takes an empty vector of Y to start with
-        let init: FR = pure(e_effect, empty(VEC_EV));
+        let init: FR = pure::<FR>(empty(VEC_EV));
 
         // Fold on the initial list (Vec<X>) and start with initial accumulator set to
         // A basic E<Vec<Y>> where E is the effect that will be returned from the specified
@@ -127,7 +135,7 @@ impl<'a, E, FR, X, Y> Traverse<'a, Vec<X>, E, Vec<Y>, FR, X, Y> for VecEffect
                     // combination if both the accumulated effect and the returned
                     // effect both match up to "positive" values (like success or Some()).
                     // These next lines won't even get called unless that is the case.
-                    let r = pure(VEC_EV, fx);
+                    let r = pure::<Vec<Y>>(fx);
                     combine(VecEffect, r, y)
                 })
         })
@@ -137,7 +145,6 @@ impl<'a, E, FR, X, Y> Traverse<'a, Vec<X>, E, Vec<Y>, FR, X, Y> for VecEffect
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::option::*;
 
     #[test]
     fn test_semigroup() {
@@ -168,19 +175,19 @@ mod tests {
 
     #[test]
     fn test_applicative() {
-        let out = VEC_EV.pure(3);
+        let out = Vec::<u32>::app().pure(3);
         assert_eq!(vec![3], out);
-        let out = pure(VEC_EV, "test");
+        let out: Vec<&str> = pure("test");
         assert_eq!(vec!["test"], out);
     }
 
     #[test]
     fn test_functor() {
-        let out: Vec<u32> = pure(VEC_EV, 3);
+        let out: Vec<u32> = pure( 3);
         let res = fmap(out, |i| i + 4);
         assert_eq!(vec![7], res);
 
-        let out: Vec<String> = pure(VEC_EV, format!("Hello"));
+        let out: Vec<String> = pure(format!("Hello"));
         let res = fmap(out, |i| format!("{} World", i));
         assert_eq!(vec![format!("Hello World")], res);
 
@@ -188,15 +195,15 @@ mod tests {
         let res = fmap(out, |i| format!("{} World", i));
         assert!(res.is_empty());
 
-        let out1: Vec<u32> = pure(VEC_EV, 3);
-        let out2: Vec<String> = pure(VEC_EV, format!("Bowls"));
+        let out1: Vec<u32> = pure( 3);
+        let out2: Vec<String> = pure(format!("Bowls"));
         let res = fmap2(out1, out2, |i, j| format!("{} {} of salad", i + 4, j));
         assert_eq!(vec![format!("7 Bowls of salad")], res);
     }
 
     #[test]
     fn test_monad() {
-        let out: Vec<u32> = pure(VEC_EV, 3);
+        let out: Vec<u32> = pure(3);
         let res = flat_map(out, |i| vec![i + 1, i + 2, i + 3]);
         assert_eq!(vec![4, 5, 6], res);
 
@@ -236,7 +243,7 @@ mod tests {
 
     #[test]
     fn test_traverse() {
-        let o = traverse(OP_EV, vec![2, 4, 6], |x| match x % 2 == 0 {
+        let o = traverse(vec![2, 4, 6], |x| match x % 2 == 0 {
             true => Some(format!("{}", x)),
             false => None
         });
@@ -249,7 +256,7 @@ mod tests {
 
     #[test]
     fn test_traverse_err() {
-        let o = traverse(OP_EV, vec![2, 5, 6], |x| match x % 2 == 0 {
+        let o = traverse(vec![2, 5, 6], |x| match x % 2 == 0 {
             true => Some(format!("{}", x)),
             false => None
         });

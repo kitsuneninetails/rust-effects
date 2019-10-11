@@ -40,6 +40,13 @@ pub struct ConcreteFuture<'a, X> {
 }
 
 impl<'a, X> F<X> for ConcreteFuture<'a, X> {}
+impl<'a, X: 'a + Send + Sync> ApplicativeEffect for ConcreteFuture<'a, X> {
+    type X = X;
+    type Fct = FutureEffect;
+    fn app() -> Self::Fct {
+        FutureEffect
+    }
+}
 impl<'a, X, Y> MonadEffect<'a, ConcreteFuture<'a, X>, ConcreteFuture<'a, Y>, X, Y> for ConcreteFuture<'a, X>
     where
         X: 'a + Send + Sync,
@@ -254,8 +261,8 @@ mod tests {
     #[test]
     fn test_semigroup() {
         block_on(async {
-            let f1 = pure(FUT_EV, 1u32);
-            let f2 = pure(FUT_EV, 2u32);
+            let f1: ConcreteFuture<u32> = pure(1);
+            let f2: ConcreteFuture<u32> = pure(2u32);
             let fr = combine(FUT_EV.sg(IADD_SG), f1, f2);
             assert_eq!(fr.await, 3);
         });
@@ -272,9 +279,9 @@ mod tests {
     #[test]
     fn test_applicative() {
         block_on(async {
-            let f = pure(FUT_EV, 3u32);
+            let f: ConcreteFuture<u32> = pure(3u32);
             assert_eq!(f.await, 3);
-            let f: ConcreteFuture<Result<&str, ()>> = pure(FUT_EV, Ok("test"));
+            let f: ConcreteFuture<Result<&str, ()>> = pure(Ok("test"));
             assert_eq!(f.await, Ok("test"));
         });
     }
@@ -282,7 +289,7 @@ mod tests {
     #[test]
     fn test_functor() {
         block_on(async {
-            let f = pure(FUT_EV, 3u32);
+            let f: ConcreteFuture<u32> = pure(3u32);
             let f = fmap(f, |i| format!("{} strings", i));
             assert_eq!(f.await, "3 strings".to_string());
         });
@@ -291,7 +298,7 @@ mod tests {
     #[test]
     fn test_monad() {
         block_on(async {
-            let f = pure(FUT_EV, 3u32);
+            let f: ConcreteFuture<u32> = pure(3u32);
             let f2 = flat_map(f, |i| {
                 ConcreteFuture::new(lazy(move |_| format!("{} strings", i)))
             });
@@ -299,7 +306,7 @@ mod tests {
         });
 
         block_on(async {
-            let f = pure(FUT_EV, 3u32);
+            let f: ConcreteFuture<u32> = pure(3u32);
             let fr = fold(f,
                           10u32,
                           |y, x| y + x);
@@ -308,7 +315,7 @@ mod tests {
 
         block_on(async {
             let fs = vec![
-                pure(FUT_EV, 3u32),
+                ConcreteFuture::<u32>::app().pure(3u32),
                 ConcreteFuture::new(ready(10u32)),
                 ConcreteFuture::new(lazy(|_| 4u32))
             ];
@@ -322,8 +329,8 @@ mod tests {
     #[test]
     fn test_product() {
         block_on(async {
-            let f1 = pure(FUT_EV, 3u32);
-            let f2 = pure(FUT_EV, "strings");
+            let f1: ConcreteFuture<u32> = pure(3u32);
+            let f2: ConcreteFuture<&str> = pure("strings");
             let f = product(f1, f2);
             assert_eq!(f.await, (3, "strings"));
         });
@@ -333,8 +340,7 @@ mod tests {
     fn test_traverse() {
         block_on(async {
             let fs: Vec<u32> = vec![3, 10, 4];
-            let fr = traverse(FUT_EV,
-                              fs,
+            let fr = traverse(fs,
                               |x| ConcreteFuture::new(ready(x + 5)));
             assert_eq!(fr.await, vec![9, 15, 8]);
         });

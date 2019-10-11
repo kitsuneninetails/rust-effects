@@ -3,7 +3,6 @@ use super::Effect;
 pub trait Monoid<T> : Effect {
     fn empty(&self) -> T;
 }
-
 pub fn empty<T>(ev: &impl Monoid<T>) -> T {
     ev.empty()
 }

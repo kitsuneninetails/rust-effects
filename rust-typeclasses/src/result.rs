@@ -1,6 +1,13 @@
 use super::prelude::*;
 
 impl<X, E> F<X> for Result<X, E> {}
+impl<X, E> ApplicativeEffect for Result<X, E> {
+    type X = X;
+    type Fct = ResultEffect;
+    fn app() -> Self::Fct {
+        ResultEffect
+    }
+}
 impl<'a, X, Y, E> MonadEffect<'a, Result<X, E>, Result<Y, E>, X, Y> for Result<X, E> {
     type Fct = ResultEffect;
     fn monad(&self) -> Self::Fct { ResultEffect }
@@ -116,20 +123,20 @@ mod tests {
 
     #[test]
     fn test_applicative() {
-        let out: Result<u32, ()> = RES_EV.pure(3);
+        let out: Result::<u32, ()> = Result::<u32, ()>::app().pure(3);
         assert_eq!(Ok(3), out);
 
-        let out: Result<&str, ()> = RES_EV.pure("test");
+        let out: Result<&str, ()> = pure("test");
         assert_eq!(Ok("test"), out);
     }
 
     #[test]
     fn test_functor() {
-        let out: Result<u32, ()> = pure(RES_EV, 3);
+        let out: Result<u32, ()> = pure(3);
         let res = fmap(out, |i| i + 4);
         assert_eq!(Ok(7), res);
 
-        let out: Result<String, ()> = pure(RES_EV, format!("Hello"));
+        let out: Result<String, ()> = pure(format!("Hello"));
         let res = fmap(out, |i| format!("{} World", i));
         assert_eq!("Hello World", res.unwrap());
 
@@ -137,12 +144,12 @@ mod tests {
         let res = fmap(out, |i| format!("{} World", i));
         assert_eq!(Err(()), res);
 
-        let out1: Result<u32, ()> = pure(RES_EV, 3);
-        let out2: Result<String, ()> = pure(RES_EV, format!("Bowls"));
+        let out1: Result<u32, ()> = pure(3);
+        let out2 = pure::<Result<String, ()>>(format!("Bowls"));
         let res = fmap2(out1, out2, |i, j| format!("{} {} of salad", i+4, j));
         assert_eq!("7 Bowls of salad", res.unwrap());
 
-        let out1: Result<u32, ()> = pure(RES_EV, 3);
+        let out1: Result<u32, ()> = pure(3);
         let out2: Result<String, ()> = Err(());
         let res = fmap2(out1, out2, |i, j| format!("{} {} of salad", i+4, j));
         assert_eq!(Err(()), res);
@@ -150,7 +157,7 @@ mod tests {
 
     #[test]
     fn test_monad() {
-        let out: Result<u32, ()> = pure(RES_EV, 3);
+        let out: Result<u32, ()> = pure(3);
         let res = flat_map(out, |i| Ok(i + 4));
         assert_eq!(Ok(7), res);
 
@@ -162,12 +169,12 @@ mod tests {
 
     #[test]
     fn test_product() {
-        let out1: Result<u32, ()> = pure(RES_EV, 3);
-        let out2: Result<u32, ()> = pure(RES_EV, 5);
+        let out1: Result<u32, ()> = pure(3);
+        let out2: Result<u32, ()> = pure(5);
         let res = product(out1, out2);
         assert_eq!(Ok((3, 5)), res);
 
-        let out1: Result<u32, ()> = pure(RES_EV, 3);
+        let out1: Result<u32, ()> = pure(3);
         let out2: Result<u32, ()> = empty(RES_EV);
         let res = product(out1, out2);
         assert_eq!(Err(()), res);
