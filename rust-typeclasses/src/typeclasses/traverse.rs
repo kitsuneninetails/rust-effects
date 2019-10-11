@@ -21,8 +21,7 @@ pub trait Traverse<'a, T, E, TR, FR, X, Y>: Effect
           TR: F<Y>, // The Traversable type to return, wrapping the effect's internal type, T<Y>
           FR: F<TR> + ApplicativeEffect // The full return, the effect wrapping the traversable, F<T<X>>
 {
-    fn traverse(&self,
-                f: T,
+    fn traverse(f: T,
                 func: impl 'a + Fn(X) -> E + Send + Sync) -> FR;
 }
 
@@ -33,7 +32,6 @@ pub trait TraverseEffect<'a, T, E, TR, FR, X, Y>
         TR: F<Y>,
         FR: F<TR> + ApplicativeEffect {
     type Fct: Traverse<'a, T, E, TR, FR, X, Y> + Effect;
-    fn traverse(&self) -> Self::Fct;
 }
 
 pub fn traverse<'a, T, E, TR, FR, X, Y>(f: T,
@@ -43,5 +41,5 @@ where
     E: F<Y> + Functor2Effect<'a, E, FR, FR, Y, TR, TR>,
     TR: F<Y>,
     FR: F<TR> + ApplicativeEffect {
-    f.traverse().traverse(f, func)
+    T::Fct::traverse(f, func)
 }

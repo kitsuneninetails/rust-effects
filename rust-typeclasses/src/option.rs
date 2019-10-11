@@ -10,23 +10,18 @@ impl<X> ApplicativeEffect for Option<X> {
 }
 impl<'a, X, Y> MonadEffect<'a, Option<X>, Option<Y>, X, Y> for Option<X> {
     type Fct = OptionEffect;
-    fn monad(&self) -> Self::Fct { OptionEffect }
 }
 impl<'a, X, Y: Clone> FoldableEffect<'a, Option<X>, X, Y, Y> for Option<X> {
     type Fct = OptionEffect;
-    fn foldable(&self) -> Self::Fct { OptionEffect }
 }
 impl<'a, X, Y> FunctorEffect<'a, Option<X>, Option<Y>, X, Y> for Option<X> {
     type Fct = OptionEffect;
-    fn functor(&self) -> Self::Fct { OptionEffect }
 }
 impl<'a, X, Y, Z> Functor2Effect<'a, Option<X>, Option<Y>, Option<Z>, X, Y, Z> for Option<X> {
     type Fct = OptionEffect;
-    fn functor2(&self) -> Self::Fct { OptionEffect }
 }
 impl<'a, X: Clone, Y: Clone> ProductableEffect<Option<X>, Option<Y>, Option<(X, Y)>, X, Y> for Option<X> {
     type Fct = OptionEffect;
-    fn productable(&self) -> Self::Fct { OptionEffect }
 }
 
 impl<X, X2, XR, T: Semigroup<X, X2, XR>> Semigroup<
@@ -60,12 +55,12 @@ impl<X> Applicative<Option<X>, X> for OptionEffect {
     }
 }
 impl<'a, X, Y> Functor<'a, Option<X>, Option<Y>, X, Y> for OptionEffect {
-    fn fmap(&self, f: Option<X>, func: impl 'a + Fn(X) -> Y + Send + Sync) -> Option<Y> {
+    fn fmap(f: Option<X>, func: impl 'a + Fn(X) -> Y + Send + Sync) -> Option<Y> {
         f.map(func)
     }
 }
 impl<'a, X, Y, Z> Functor2<'a, Option<X>, Option<Y>, Option<Z>, X, Y, Z> for OptionEffect {
-    fn fmap2(&self, fa: Option<X>, fb: Option<Y>, func: impl 'a + Fn(X, Y) -> Z + Send + Sync) -> Option<Z> {
+    fn fmap2(fa: Option<X>, fb: Option<Y>, func: impl 'a + Fn(X, Y) -> Z + Send + Sync) -> Option<Z> {
         fa.and_then(|i| fb.map(|j| func(i, j)))
     }
 }
@@ -73,12 +68,12 @@ impl<'a, X, Y> Monad<'a, Option<X>, Option<Y>> for OptionEffect {
     type In = X;
     type Out = Y;
 
-    fn flat_map(&self, f: Option<X>, func: impl 'a + Fn(X) -> Option<Y> + Send + Sync) -> Option<Y> {
+    fn flat_map(f: Option<X>, func: impl 'a + Fn(X) -> Option<Y> + Send + Sync) -> Option<Y> {
         f.and_then(func)
     }
 }
 impl<'a, X, Y: Clone> Foldable<'a, Option<X>, X, Y, Y> for OptionEffect {
-    fn fold(&self, f: Option<X>, init: Y, func: impl 'a + Fn(Y, X) -> Y + Send + Sync) -> Y {
+    fn fold(f: Option<X>, init: Y, func: impl 'a + Fn(Y, X) -> Y + Send + Sync) -> Y {
         match f {
             Some(i) => func(init, i),
             None => init
@@ -86,7 +81,7 @@ impl<'a, X, Y: Clone> Foldable<'a, Option<X>, X, Y, Y> for OptionEffect {
     }
 }
 impl<X: Clone, Y: Clone> Productable<Option<X>, Option<Y>, Option<(X, Y)>, X, Y> for OptionEffect {
-    fn product(&self, fa: Option<X>, fb: Option<Y>) -> Option<(X, Y)> {
+    fn product(fa: Option<X>, fb: Option<Y>) -> Option<(X, Y)> {
         fmap2(fa, fb, |a, b| (a.clone(), b.clone()))
     }
 }

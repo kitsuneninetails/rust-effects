@@ -52,21 +52,18 @@ impl<'a, X, Y> MonadEffect<'a, ConcreteFuture<'a, X>, ConcreteFuture<'a, Y>, X, 
         X: 'a + Send + Sync,
         Y: 'a + Send + Sync {
     type Fct = FutureEffect;
-    fn monad(&self) -> Self::Fct { FutureEffect }
 }
 impl<'a, X, Y: Clone> FoldableEffect<'a, ConcreteFuture<'a, X>, X, Y, ConcreteFuture<'a, Y>> for ConcreteFuture<'a, X>
     where
         X: 'a + Send + Sync,
         Y: 'a + Send + Sync{
     type Fct = FutureEffect;
-    fn foldable(&self) -> Self::Fct { FutureEffect }
 }
 impl<'a, X, Y> FunctorEffect<'a, ConcreteFuture<'a, X>, ConcreteFuture<'a, Y>, X, Y> for ConcreteFuture<'a, X>
     where
         X: 'a + Send + Sync,
         Y: 'a + Send + Sync {
     type Fct = FutureEffect;
-    fn functor(&self) -> Self::Fct { FutureEffect }
 }
 impl<'a, X, Y, Z> Functor2Effect<
     'a,
@@ -81,7 +78,6 @@ impl<'a, X, Y, Z> Functor2Effect<
         Y: 'a + Send + Sync,
         Z: 'a + Send + Sync {
     type Fct = FutureEffect;
-    fn functor2(&self) -> Self::Fct { FutureEffect }
 }
 impl<'a, X: Clone, Y: Clone> ProductableEffect<
     ConcreteFuture<'a, X>,
@@ -93,7 +89,6 @@ impl<'a, X: Clone, Y: Clone> ProductableEffect<
         X: 'a + Send + Sync,
         Y: 'a + Send + Sync {
     type Fct = FutureEffect;
-    fn productable(&self) -> Self::Fct { FutureEffect }
 }
 
 impl<'a, X> Future for ConcreteFuture<'a, X> {
@@ -156,8 +151,7 @@ impl<'a, X, Y> Functor<
     where
         X: 'a + Send + Sync,
         Y: 'a + Send + Sync {
-    fn fmap(&self,
-            f: ConcreteFuture<'a, X>,
+    fn fmap(f: ConcreteFuture<'a, X>,
             func: impl 'a + Fn(X) -> Y + Send) -> ConcreteFuture<'a, Y> {
         ConcreteFuture::new(f.map(move |x| func(x)))
     }
@@ -175,8 +169,7 @@ impl<'a, X, Y, Z> Functor2<
         X: 'a + Send + Sync,
         Y: 'a + Send + Sync,
         Z: 'a + Send + Sync {
-    fn fmap2(&self,
-             fa: ConcreteFuture<'a, X>,
+    fn fmap2(fa: ConcreteFuture<'a, X>,
              fb: ConcreteFuture<'a, Y>,
              func: impl 'a + Fn(X, Y) -> Z + Send) -> ConcreteFuture<'a, Z> {
         let fr = fa.then(move |x| fb.map(move |y| func(x, y)));
@@ -195,8 +188,7 @@ impl<'a, X, Y> Monad<
     type In = X;
     type Out = Y;
 
-    fn flat_map(&self,
-                f: ConcreteFuture<'a, X>,
+    fn flat_map(f: ConcreteFuture<'a, X>,
                 func: impl 'a + Fn(X) -> ConcreteFuture<'a, Y> + Send) -> ConcreteFuture<'a, Y> {
         ConcreteFuture::new(f.map(move |x| func(x)).flatten())
     }
@@ -211,8 +203,7 @@ impl<'a, X, Y> Foldable<
     where
         X: 'a + Send,
         Y: 'a + Send {
-    fn fold(&self,
-            f: ConcreteFuture<'a, X>,
+    fn fold(f: ConcreteFuture<'a, X>,
             init: Y,
             func: impl 'a + Fn(Y, X) -> Y + Send)
         -> ConcreteFuture<'a, Y> {
@@ -244,8 +235,7 @@ impl<'a, X: Clone, Y: Clone> Productable<
     where
         X: 'a + Send + Sync,
         Y: 'a + Send + Sync {
-    fn product(&self,
-               fa: ConcreteFuture<'a, X>,
+    fn product(fa: ConcreteFuture<'a, X>,
                fb: ConcreteFuture<'a, Y>) -> ConcreteFuture<'a, (X, Y)> {
         fmap2(fa, fb, |a, b| (a.clone(), b.clone()))
     }
