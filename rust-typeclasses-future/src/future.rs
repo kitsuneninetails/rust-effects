@@ -1,13 +1,7 @@
-use rust_typeclasses::typeclasses::{F,
-                                    applicative::*,
-                                    functor::*,
-                                    monad::*,
-                                    monoid::*,
-                                    product::*,
-                                    semigroup::*};
+use rust_typeclasses::prelude::*;
 use futures::prelude::*;
 use futures::future::{ready, BoxFuture};
-use futures::{Poll, FutureExt};
+use futures::Poll;
 use futures::task::Context;
 use std::marker::PhantomData;
 use std::pin::Pin;
@@ -31,6 +25,7 @@ impl<'a, X, X2, XR, T: 'static> FutureInnerSemigroup<'a, X, X2, XR, T> {
         }
     }
 }
+impl<'a, X, X2, XR, T: 'static> Effect for FutureInnerSemigroup<'a, X, X2, XR, T>{}
 
 pub struct ConcreteFuture<'a, X> {
     pub inner: BoxFuture<'a, X>
@@ -45,6 +40,54 @@ pub struct ConcreteFuture<'a, X> {
 }
 
 impl<'a, X> F<X> for ConcreteFuture<'a, X> {}
+impl<'a, X, Y> MonadEffect<'a, ConcreteFuture<'a, X>, ConcreteFuture<'a, Y>, X, Y> for ConcreteFuture<'a, X>
+    where
+        X: 'a + Send + Sync,
+        Y: 'a + Send + Sync {
+    type Fct = FutureEffect;
+    fn monad(&self) -> Self::Fct { FutureEffect }
+}
+impl<'a, X, Y: Clone> FoldableEffect<'a, ConcreteFuture<'a, X>, X, Y, ConcreteFuture<'a, Y>> for ConcreteFuture<'a, X>
+    where
+        X: 'a + Send + Sync,
+        Y: 'a + Send + Sync{
+    type Fct = FutureEffect;
+    fn foldable(&self) -> Self::Fct { FutureEffect }
+}
+impl<'a, X, Y> FunctorEffect<'a, ConcreteFuture<'a, X>, ConcreteFuture<'a, Y>, X, Y> for ConcreteFuture<'a, X>
+    where
+        X: 'a + Send + Sync,
+        Y: 'a + Send + Sync {
+    type Fct = FutureEffect;
+    fn functor(&self) -> Self::Fct { FutureEffect }
+}
+impl<'a, X, Y, Z> Functor2Effect<
+    'a,
+    ConcreteFuture<'a, X>,
+    ConcreteFuture<'a, Y>,
+    ConcreteFuture<'a, Z>,
+    X,
+    Y,
+    Z> for ConcreteFuture<'a, X>
+    where
+        X: 'a + Send + Sync,
+        Y: 'a + Send + Sync,
+        Z: 'a + Send + Sync {
+    type Fct = FutureEffect;
+    fn functor2(&self) -> Self::Fct { FutureEffect }
+}
+impl<'a, X: Clone, Y: Clone> ProductableEffect<
+    ConcreteFuture<'a, X>,
+    ConcreteFuture<'a, Y>,
+    ConcreteFuture<'a, (X, Y)>,
+    X,
+    Y> for ConcreteFuture<'a, X>
+    where
+        X: 'a + Send + Sync,
+        Y: 'a + Send + Sync {
+    type Fct = FutureEffect;
+    fn productable(&self) -> Self::Fct { FutureEffect }
+}
 
 impl<'a, X> Future for ConcreteFuture<'a, X> {
     type Output=X;
@@ -54,12 +97,14 @@ impl<'a, X> Future for ConcreteFuture<'a, X> {
     }
 }
 
+#[derive(Clone, Debug)]
 pub struct FutureEffect;
 impl FutureEffect {
     pub fn sg<X, X2, XR, T: Semigroup<X, X2, XR>>(&self, ev: T) -> FutureInnerSemigroup<X, X2, XR, T>{
         FutureInnerSemigroup::apply(ev)
     }
 }
+impl Effect for FutureEffect {}
 
 pub const FUT_EV: &FutureEffect = &FutureEffect;
 
@@ -126,8 +171,8 @@ impl<'a, X, Y, Z> Functor2<
     fn fmap2(&self,
              fa: ConcreteFuture<'a, X>,
              fb: ConcreteFuture<'a, Y>,
-             func: impl 'a + Fn(&X, &Y) -> Z + Send) -> ConcreteFuture<'a, Z> {
-        let fr = fa.then(move |x| fb.map(move |y| func(&x,&y)));
+             func: impl 'a + Fn(X, Y) -> Z + Send) -> ConcreteFuture<'a, Z> {
+        let fr = fa.then(move |x| fb.map(move |y| func(x, y)));
 
         ConcreteFuture::<'a, Z>::new(fr)
     }
@@ -168,27 +213,19 @@ impl<'a, X, Y> Foldable<
     }
 }
 
-impl<'a, X, Y> VecFoldable<
-    'a,
-    ConcreteFuture<'a, X>,
-    X,
-    Y,
-    ConcreteFuture<'a, Y>,
-    FutureEffect> for FutureEffect
+/// A specialized fold for vectors of Futures which generally have to map and chain the futures
+/// together into one big `Future`, rather than accumulate and combine on the fly.
+pub fn vfold<'a, X, Y>(f: Vec<ConcreteFuture<'a, X>>,
+                   init: Y,
+                   func: impl 'a + Fn(Y, X) -> Y + Send + Sync + Copy) -> ConcreteFuture<'a, Y>
     where
         X: 'a + Send,
         Y: 'a + Send {
-    fn fold(&self,
-            f: Vec<ConcreteFuture<'a, X>>,
-            init: Y,
-            func: impl 'a + Fn(Y, X) -> Y + Send + Sync + Copy)
-        -> ConcreteFuture<'a, Y> {
-        let mut accum = ConcreteFuture::new(ready(init));
-        for i in f.into_iter() {
-            accum = ConcreteFuture::new(accum.then(move |y| i.map(move |x| func(y, x))));
-        }
-        accum
+    let mut accum = ConcreteFuture::new(ready(init));
+    for i in f.into_iter() {
+        accum = ConcreteFuture::new(accum.then(move |y| i.map(move |x| func(y, x))));
     }
+    accum
 }
 
 impl<'a, X: Clone, Y: Clone> Productable<
@@ -203,34 +240,13 @@ impl<'a, X: Clone, Y: Clone> Productable<
     fn product(&self,
                fa: ConcreteFuture<'a, X>,
                fb: ConcreteFuture<'a, Y>) -> ConcreteFuture<'a, (X, Y)> {
-        fmap2(FUT_EV, fa, fb, |a, b| (a.clone(), b.clone()))
+        fmap2(fa, fb, |a, b| (a.clone(), b.clone()))
     }
 }
-
-//impl<'a, E, FR, X, Y> Traverse<
-//    ConcreteFuture<'a, X>,
-//    E,
-//    ConcreteFuture<'a, Y>,
-//    FR,
-//    X,
-//    Y> for FutureEffect
-//    where
-//        Y: Clone,
-//        E: F<Y>,
-//        FR: F<ConcreteFuture<'a, Y>> {
-//    fn traverse(&self,
-//                e_effect: &(impl Applicative<FR, Vec<Y>> + Functor2<E, FR, FR, Y, Vec<Y>, Vec<Y>>),
-//                fa: ConcreteFuture<'a, X>,
-//                func: fn(X) -> E) -> FR {
-//
-//    }
-//}
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rust_typeclasses::typeclasses::traverse::traverse;
-    use rust_typeclasses::vec::*;
 
     use futures::executor::block_on;
     use futures::future::lazy;
@@ -267,7 +283,7 @@ mod tests {
     fn test_functor() {
         block_on(async {
             let f = pure(FUT_EV, 3u32);
-            let f = fmap(FUT_EV, f, |i| format!("{} strings", i));
+            let f = fmap(f, |i| format!("{} strings", i));
             assert_eq!(f.await, "3 strings".to_string());
         });
     }
@@ -276,7 +292,7 @@ mod tests {
     fn test_monad() {
         block_on(async {
             let f = pure(FUT_EV, 3u32);
-            let f2 = flat_map(FUT_EV, f, |i| {
+            let f2 = flat_map(f, |i| {
                 ConcreteFuture::new(lazy(move |_| format!("{} strings", i)))
             });
             assert_eq!(f2.await, "3 strings".to_string());
@@ -284,8 +300,7 @@ mod tests {
 
         block_on(async {
             let f = pure(FUT_EV, 3u32);
-            let fr = fold(FUT_EV,
-                          f,
+            let fr = fold(f,
                           10u32,
                           |y, x| y + x);
             assert_eq!(fr.await, 13);
@@ -297,8 +312,7 @@ mod tests {
                 ConcreteFuture::new(ready(10u32)),
                 ConcreteFuture::new(lazy(|_| 4u32))
             ];
-            let fr = vfold(FUT_EV,
-                           fs,
+            let fr = vfold(fs,
                            0u32,
                            |y, x| y + x);
             assert_eq!(fr.await, 17);
@@ -310,7 +324,7 @@ mod tests {
         block_on(async {
             let f1 = pure(FUT_EV, 3u32);
             let f2 = pure(FUT_EV, "strings");
-            let f = product(FUT_EV, f1, f2);
+            let f = product(f1, f2);
             assert_eq!(f.await, (3, "strings"));
         });
     }
@@ -319,8 +333,7 @@ mod tests {
     fn test_traverse() {
         block_on(async {
             let fs: Vec<u32> = vec![3, 10, 4];
-            let fr = traverse(VEC_EV,
-                              FUT_EV,
+            let fr = traverse(FUT_EV,
                               fs,
                               |x| ConcreteFuture::new(ready(x + 5)));
             assert_eq!(fr.await, vec![9, 15, 8]);

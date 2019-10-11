@@ -1,12 +1,26 @@
-use super::typeclasses::{F,
-                         applicative::*,
-                         functor::*,
-                         monad::*,
-                         monoid::*,
-                         product::*,
-                         semigroup::*};
+use super::prelude::*;
 
 impl<X> F<X> for Option<X> {}
+impl<'a, X, Y> MonadEffect<'a, Option<X>, Option<Y>, X, Y> for Option<X> {
+    type Fct = OptionEffect;
+    fn monad(&self) -> Self::Fct { OptionEffect }
+}
+impl<'a, X, Y: Clone> FoldableEffect<'a, Option<X>, X, Y, Y> for Option<X> {
+    type Fct = OptionEffect;
+    fn foldable(&self) -> Self::Fct { OptionEffect }
+}
+impl<'a, X, Y> FunctorEffect<'a, Option<X>, Option<Y>, X, Y> for Option<X> {
+    type Fct = OptionEffect;
+    fn functor(&self) -> Self::Fct { OptionEffect }
+}
+impl<'a, X, Y, Z> Functor2Effect<'a, Option<X>, Option<Y>, Option<Z>, X, Y, Z> for Option<X> {
+    type Fct = OptionEffect;
+    fn functor2(&self) -> Self::Fct { OptionEffect }
+}
+impl<'a, X: Clone, Y: Clone> ProductableEffect<Option<X>, Option<Y>, Option<(X, Y)>, X, Y> for Option<X> {
+    type Fct = OptionEffect;
+    fn productable(&self) -> Self::Fct { OptionEffect }
+}
 
 impl<X, X2, XR, T: Semigroup<X, X2, XR>> Semigroup<
     Option<X>,
@@ -23,6 +37,8 @@ impl OptionEffect {
         CombineInnerSemigroup::apply(ev)
     }
 }
+
+impl Effect for OptionEffect {}
 
 pub const OP_EV: &OptionEffect = &OptionEffect;
 
@@ -42,8 +58,8 @@ impl<'a, X, Y> Functor<'a, Option<X>, Option<Y>, X, Y> for OptionEffect {
     }
 }
 impl<'a, X, Y, Z> Functor2<'a, Option<X>, Option<Y>, Option<Z>, X, Y, Z> for OptionEffect {
-    fn fmap2(&self, fa: Option<X>, fb: Option<Y>, func: impl 'a + Fn(&X, &Y) -> Z + Send + Sync) -> Option<Z> {
-        fa.and_then(|i| fb.map(|j| func(&i, &j)))
+    fn fmap2(&self, fa: Option<X>, fb: Option<Y>, func: impl 'a + Fn(X, Y) -> Z + Send + Sync) -> Option<Z> {
+        fa.and_then(|i| fb.map(|j| func(i, j)))
     }
 }
 impl<'a, X, Y> Monad<'a, Option<X>, Option<Y>> for OptionEffect {
@@ -64,7 +80,7 @@ impl<'a, X, Y: Clone> Foldable<'a, Option<X>, X, Y, Y> for OptionEffect {
 }
 impl<X: Clone, Y: Clone> Productable<Option<X>, Option<Y>, Option<(X, Y)>, X, Y> for OptionEffect {
     fn product(&self, fa: Option<X>, fb: Option<Y>) -> Option<(X, Y)> {
-        fmap2(OP_EV, fa, fb, |a, b| (a.clone(), b.clone()))
+        fmap2(fa, fb, |a, b| (a.clone(), b.clone()))
     }
 }
 
@@ -111,39 +127,39 @@ mod tests {
     #[test]
     fn test_functor() {
         let out: Option<u32> = pure(OP_EV, 3);
-        let res = fmap(OP_EV, out, |i| i + 4);
+        let res = fmap(out, |i| i + 4);
         assert_eq!(Some(7), res);
 
         let out: Option<String> = pure(OP_EV, format!("Hello"));
-        let res = fmap(OP_EV, out, |i| format!("{} World", i));
+        let res = fmap(out, |i| format!("{} World", i));
         assert_eq!("Hello World", res.unwrap());
 
         let out: Option<String> = empty(OP_EV);
-        let res = fmap(OP_EV, out, |i| format!("{} World", i));
+        let res = fmap(out, |i| format!("{} World", i));
         assert_eq!(None, res);
 
         let out1: Option<u32> = pure(OP_EV, 3);
         let out2: Option<String> = pure(OP_EV, format!("Bowls"));
-        let res = fmap2(OP_EV, out1, out2, |i, j| format!("{} {} of salad", i + 4, j));
+        let res = fmap2(out1, out2, |i, j| format!("{} {} of salad", i + 4, j));
         assert_eq!("7 Bowls of salad", res.unwrap());
     }
 
     #[test]
     fn test_monad() {
         let out: Option<u32> = pure(OP_EV, 3);
-        let res = flat_map(OP_EV, out, |i| Some(i + 4));
+        let res = flat_map(out, |i| Some(i + 4));
         assert_eq!(Some(7), res);
 
         let out: Option<u32> = empty(OP_EV);
-        let res = flat_map(OP_EV, out, |i| Some(i + 4));
+        let res = flat_map(out, |i| Some(i + 4));
         assert_eq!(None, res);
 
         let out: Option<u32> = pure(OP_EV, 2);
-        let res = fold(OP_EV, out, 0, |init, i| init + i);
+        let res = fold(out, 0, |init, i| init + i);
         assert_eq!(2, res);
 
         let out: Option<u32> = empty(OP_EV);
-        let res = fold(OP_EV, out, 0, |init, i| init + i);
+        let res = fold(out, 0, |init, i| init + i);
         assert_eq!(0, res);
     }
 
@@ -151,12 +167,12 @@ mod tests {
     fn test_product() {
         let out1: Option<u32> = pure(OP_EV, 3);
         let out2: Option<u32> = pure(OP_EV, 5);
-        let res = product(OP_EV, out1, out2);
+        let res = product(out1, out2);
         assert_eq!(Some((3, 5)), res);
 
         let out1: Option<u32> = pure(OP_EV, 3);
         let out2: Option<u32> = empty(OP_EV);
-        let res = product(OP_EV, out1, out2);
+        let res = product(out1, out2);
         assert_eq!(None, res);
     }
 }

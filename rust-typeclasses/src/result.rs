@@ -1,12 +1,26 @@
-use super::typeclasses::{F,
-                         applicative::*,
-                         functor::*,
-                         monad::*,
-                         monoid::*,
-                         product::*,
-                         semigroup::*};
+use super::prelude::*;
 
 impl<X, E> F<X> for Result<X, E> {}
+impl<'a, X, Y, E> MonadEffect<'a, Result<X, E>, Result<Y, E>, X, Y> for Result<X, E> {
+    type Fct = ResultEffect;
+    fn monad(&self) -> Self::Fct { ResultEffect }
+}
+impl<'a, X, Y: Clone, E> FoldableEffect<'a, Result<X,E>, X, Y, Y> for Result<X, E> {
+    type Fct = ResultEffect;
+    fn foldable(&self) -> Self::Fct { ResultEffect }
+}
+impl<'a, X, Y, E> FunctorEffect<'a, Result<X,E>, Result<Y,E>, X, Y> for Result<X,E> {
+    type Fct = ResultEffect;
+    fn functor(&self) -> Self::Fct { ResultEffect }
+}
+impl<'a, X, Y, Z, E> Functor2Effect<'a, Result<X,E>, Result<Y,E>, Result<Z,E>, X, Y, Z> for Result<X,E> {
+    type Fct = ResultEffect;
+    fn functor2(&self) -> Self::Fct { ResultEffect }
+}
+impl<'a, X: Clone, Y: Clone, E> ProductableEffect<Result<X,E>, Result<Y,E>, Result<(X, Y), E>, X, Y> for Result<X,E> {
+    type Fct = ResultEffect;
+    fn productable(&self) -> Self::Fct { ResultEffect }
+}
 
 impl<X, X2, XR, E, T: Semigroup<X, X2, XR>> Semigroup<
     Result<X, E>,
@@ -23,6 +37,8 @@ impl ResultEffect {
         CombineInnerSemigroup::apply(ev)
     }
 }
+impl Effect for ResultEffect
+{}
 pub const RES_EV: &ResultEffect = &ResultEffect;
 
 impl<T, E: Default> Monoid<Result<T, E>> for ResultEffect {
@@ -41,8 +57,8 @@ impl<'a, X, Y, E> Functor<'a, Result<X, E>, Result<Y, E>, X, Y> for ResultEffect
     }
 }
 impl<'a, X, Y, Z, E> Functor2<'a, Result<X, E>, Result<Y, E>, Result<Z, E>, X, Y, Z> for ResultEffect {
-    fn fmap2(&self, r1: Result<X, E>, r2: Result<Y, E>, func: impl 'a + Fn(&X, &Y) -> Z + Send + Sync) -> Result<Z, E> {
-        r1.and_then(|i| r2.map(|j| func(&i, &j)))
+    fn fmap2(&self, r1: Result<X, E>, r2: Result<Y, E>, func: impl 'a + Fn(X, Y) -> Z + Send + Sync) -> Result<Z, E> {
+        r1.and_then(|i| r2.map(|j| func(i, j)))
     }
 }
 impl<'a, X, Y, E> Monad<'a, Result<X, E>, Result<Y, E>> for ResultEffect {
@@ -63,7 +79,7 @@ impl<'a, X, Y: Clone, E> Foldable<'a, Result<X, E>, X, Y, Y> for ResultEffect {
 }
 impl<X: Clone, Y: Clone, E> Productable<Result<X, E>, Result<Y, E>, Result<(X, Y), E>, X, Y> for ResultEffect {
     fn product(&self, fa: Result<X, E>, fb: Result<Y, E>) -> Result<(X, Y), E> {
-        fmap2(RES_EV, fa, fb, |a, b| (a.clone(), b.clone()))
+        fmap2(fa, fb, |a, b| (a.clone(), b.clone()))
     }
 }
 
@@ -110,38 +126,50 @@ mod tests {
     #[test]
     fn test_functor() {
         let out: Result<u32, ()> = pure(RES_EV, 3);
-        let res = fmap(RES_EV, out, |i| i + 4);
+        let res = fmap(out, |i| i + 4);
         assert_eq!(Ok(7), res);
 
         let out: Result<String, ()> = pure(RES_EV, format!("Hello"));
-        let res = fmap(RES_EV, out, |i| format!("{} World", i));
+        let res = fmap(out, |i| format!("{} World", i));
         assert_eq!("Hello World", res.unwrap());
 
         let out: Result<String, ()> = empty(RES_EV);
-        let res = fmap(RES_EV, out, |i| format!("{} World", i));
+        let res = fmap(out, |i| format!("{} World", i));
         assert_eq!(Err(()), res);
 
         let out1: Result<u32, ()> = pure(RES_EV, 3);
         let out2: Result<String, ()> = pure(RES_EV, format!("Bowls"));
-        let res = fmap2(RES_EV, out1, out2, |i, j| format!("{} {} of salad", i+4, j));
+        let res = fmap2(out1, out2, |i, j| format!("{} {} of salad", i+4, j));
         assert_eq!("7 Bowls of salad", res.unwrap());
 
         let out1: Result<u32, ()> = pure(RES_EV, 3);
         let out2: Result<String, ()> = Err(());
-        let res = fmap2(RES_EV, out1, out2, |i, j| format!("{} {} of salad", i+4, j));
+        let res = fmap2(out1, out2, |i, j| format!("{} {} of salad", i+4, j));
         assert_eq!(Err(()), res);
+    }
+
+    #[test]
+    fn test_monad() {
+        let out: Result<u32, ()> = pure(RES_EV, 3);
+        let res = flat_map(out, |i| Ok(i + 4));
+        assert_eq!(Ok(7), res);
+
+        let out: Result<String, ()> = empty(RES_EV);
+        let res = flat_map(out, |i| Ok(format!("{} World", i)));
+        assert_eq!(Err(()), res);
+
     }
 
     #[test]
     fn test_product() {
         let out1: Result<u32, ()> = pure(RES_EV, 3);
         let out2: Result<u32, ()> = pure(RES_EV, 5);
-        let res = product(RES_EV, out1, out2);
+        let res = product(out1, out2);
         assert_eq!(Ok((3, 5)), res);
 
         let out1: Result<u32, ()> = pure(RES_EV, 3);
         let out2: Result<u32, ()> = empty(RES_EV);
-        let res = product(RES_EV, out1, out2);
+        let res = product(out1, out2);
         assert_eq!(Err(()), res);
     }
 }

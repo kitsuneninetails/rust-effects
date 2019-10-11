@@ -1,4 +1,6 @@
-pub trait Monoid<T> {
+use super::Effect;
+
+pub trait Monoid<T> : Effect {
     fn empty(&self) -> T;
 }
 
@@ -7,11 +9,13 @@ pub fn empty<T>(ev: &impl Monoid<T>) -> T {
 }
 
 pub struct StringMonoid;
+impl Effect for StringMonoid {}
 impl Monoid<String> for StringMonoid {
     fn empty(&self) -> String { "".to_string() }
 }
 
 pub struct IntAddMonoid;
+impl Effect for IntAddMonoid {}
 impl Monoid<u8> for IntAddMonoid {
     fn empty(&self) -> u8 { 0 }
 }
@@ -44,6 +48,7 @@ impl Monoid<f64> for IntAddMonoid {
 }
 
 pub struct IntMulMonoid;
+impl Effect for IntMulMonoid {}
 impl Monoid<u8> for IntMulMonoid {
     fn empty(&self) -> u8 { 1 }
 }

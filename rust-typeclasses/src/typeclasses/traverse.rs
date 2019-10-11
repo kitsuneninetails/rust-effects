@@ -1,4 +1,5 @@
 use super::{F,
+            Effect,
             applicative::*,
             functor::*};
 
@@ -14,22 +15,35 @@ use super::{F,
 // which itself wraps teh returned concrete type Y.
 //
 // e.g. T<X> => traverse (gets a T<E<Y>> as an interim value) => E<T<Y>>
-pub trait Traverse<'a, T, E, TR, FR, X, Y>
+pub trait Traverse<'a, T, E, TR, FR, X, Y>: Effect
     where T: F<X>, // The Traversable type (Vec, Option, etc.), wrapping the effect, T<E<X>>
-          E: F<Y>, // The effect returned from func, wrapping a concrete type Y, E<Y>
+          E: F<Y> + Functor2Effect<'a, E, FR, FR, Y, TR, TR>, // The effect returned from func, wrapping a concrete type Y, E<Y>
           TR: F<Y>, // The Traversable type to return, wrapping the effect's internal type, T<Y>
           FR: F<TR> // The full return, the effect wrapping the traversable, F<T<X>>
 {
     fn traverse(&self,
-                e_effect: &(impl Applicative<FR, TR> + Functor2<'a, E, FR, FR, Y, TR, TR> + Send + Sync),
+                e_effect: &(impl Applicative<FR, TR> + Send + Sync),
                 f: T,
                 func: impl 'a + Fn(X) -> E + Send + Sync) -> FR;
 }
 
-pub fn traverse<'a, T: F<X>, E: F<Y>, TR: F<Y>, FR: F<TR>, X, Y>(
-    ev: &impl Traverse<'a, T, E, TR, FR, X, Y>,
-    e_effect: &(impl Applicative<FR, TR> + Functor2<'a, E, FR, FR, Y, TR, TR> + Send + Sync),
-    f: T,
-    func: impl 'a + Fn(X) -> E + Send + Sync) -> FR {
-    ev.traverse(e_effect, f, func)
+pub trait TraverseEffect<'a, T, E, TR, FR, X, Y>
+    where
+        T: F<X>,
+        E: F<Y>+ Functor2Effect<'a, E, FR, FR, Y, TR, TR>,
+        TR: F<Y>,
+        FR: F<TR> {
+    type Fct: Traverse<'a, T, E, TR, FR, X, Y> + Effect;
+    fn traverse(&self) -> Self::Fct;
+}
+
+pub fn traverse<'a, T, E, TR, FR, X, Y>(e_effect: &(impl Applicative<FR, TR> + Send + Sync),
+                                        f: T,
+                                        func: impl 'a + Fn(X) -> E + Send + Sync) -> FR
+where
+    T: F<X> + TraverseEffect<'a, T, E, TR, FR, X, Y>,
+    E: F<Y> + Functor2Effect<'a, E, FR, FR, Y, TR, TR>,
+    TR: F<Y>,
+    FR: F<TR> {
+    f.traverse().traverse(e_effect, f, func)
 }

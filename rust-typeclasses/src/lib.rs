@@ -12,7 +12,7 @@ pub mod prelude {
         product::*,
         semigroup::*,
         traverse::*,
-        F
+        F, Effect
     };
     pub use crate::option::*;
     pub use crate::result::*;

@@ -1,6 +1,6 @@
-use super::F;
+use super::{F, Effect};
 
-pub trait Applicative<FX, X>
+pub trait Applicative<FX, X>: Effect
     where FX: F<X> {
     fn pure(&self, x: X) -> FX;
 }

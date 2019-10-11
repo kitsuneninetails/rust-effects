@@ -7,3 +7,4 @@ pub mod semigroup;
 pub mod traverse;
 
 pub trait F<X> {}
+pub trait Effect {}

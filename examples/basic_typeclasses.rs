@@ -6,10 +6,10 @@ use std::ops::Add;
 fn func_which_takes_monad_and_addables<'a, FX, X, M>(tc: &'a M, item: FX, add: X) -> FX
 where
     X: 'a +  Add<Output=X> + Clone + Send + Sync,
-    M: Monad<'a, FX, FX, In=X, Out=X> + Applicative<FX, X> + Send + Sync,
-    FX: F<X>
+    M: Applicative<FX, X> + Send + Sync,
+    FX: F<X> + MonadEffect<'a, FX, FX, X, X>
 {
-    flat_map(tc, item, move |x| pure(tc, x + add.clone()))
+    flat_map(item, move |x| pure(tc, x + add.clone()))
 }
 
 fn main() {
@@ -17,7 +17,7 @@ fn main() {
     let o1 = pure(OP_EV, 10u32);
     let r1: Result<u32, ()> = pure(RES_EV, 10u32);
 
-    let res = flat_map(OP_EV, o1, |x| r1.ok().map(|y| x + y));
+    let res = flat_map(o1, |x| r1.ok().map(|y| x + y));
 
     println!("Result of flatmap is {:?}", res);
 

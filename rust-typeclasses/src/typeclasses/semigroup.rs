@@ -1,5 +1,6 @@
 use std::marker::PhantomData;
 use std::ops::{Add, Mul};
+use super::Effect;
 
 /// Semigroup Typeclass
 /// Encapsulates any type which is "combine-able", in other words, can be combined to form
@@ -20,7 +21,7 @@ use std::ops::{Add, Mul};
 ///
 /// The `ToString` trait is another that can make use of this (where one parameter is a string slice
 /// while the other is an owned string).
-pub trait Semigroup<T, T2, TR> {
+pub trait Semigroup<T, T2, TR>: Effect {
     fn combine(self, a: T, b: T2) -> TR;
 }
 
@@ -30,6 +31,7 @@ pub fn combine<T, T2, TR>(t: impl Semigroup<T, T2, TR>, a: T, b: T2) -> TR {
 
 pub struct StringSemigroup;
 pub const STR_SG: StringSemigroup = StringSemigroup;
+impl Effect for StringSemigroup {}
 
 impl<T: ToString, T2: ToString> Semigroup<T, T2, String> for StringSemigroup {
     fn combine(self, a: T, b: T2) -> String { format!("{}{}", a.to_string(), b.to_string()) }
@@ -37,6 +39,7 @@ impl<T: ToString, T2: ToString> Semigroup<T, T2, String> for StringSemigroup {
 
 pub struct IntAddSemigroup;
 pub const IADD_SG: IntAddSemigroup = IntAddSemigroup;
+impl Effect for IntAddSemigroup {}
 
 impl<T: Add<Output=T>> Semigroup<T, T, T> for IntAddSemigroup {
     fn combine(self, a: T, b: T) -> T { a + b }
@@ -44,6 +47,7 @@ impl<T: Add<Output=T>> Semigroup<T, T, T> for IntAddSemigroup {
 
 pub struct IntMulSemigroup;
 pub const IMUL_SG: IntMulSemigroup = IntMulSemigroup;
+impl Effect for IntMulSemigroup {}
 
 impl<T: Mul<Output=T>> Semigroup<T, T, T> for IntMulSemigroup {
     fn combine(self, a: T, b: T) -> T { a * b }
@@ -55,6 +59,7 @@ pub struct CombineInnerSemigroup<X, X2, XR, T: Semigroup<X, X2, XR>> {
     _p2: PhantomData<X2>,
     _p3: PhantomData<XR>
 }
+impl<X, X2, XR, T: Semigroup<X, X2, XR>> Effect for CombineInnerSemigroup<X, X2, XR, T> {}
 
 impl<X, X2, XR, T: Semigroup<X, X2, XR>> CombineInnerSemigroup<X, X2, XR, T> {
     pub fn apply(t: T) -> Self {

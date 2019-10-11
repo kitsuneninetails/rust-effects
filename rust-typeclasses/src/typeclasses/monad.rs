@@ -1,10 +1,10 @@
-use super::F;
+use super::{F, Effect};
 
 /// The `Monad` typeclass.  This just ensures a `flat_map` operation is available for a context
 /// of type `F<_>` which operates on a type `X` which can perform a new function returning
 /// another context for the given type `X`.  This context is then "flattened" into the originating
 /// context, essentially taking its place as the context holder for `X`.
-pub trait Monad<'a, FX, FY>
+pub trait Monad<'a, FX, FY>: Effect
     where FX: F<Self::In>,
           FY: F<Self::Out> {
     type In;
@@ -12,11 +12,18 @@ pub trait Monad<'a, FX, FY>
     fn flat_map(&self, f: FX, func: impl 'a + Fn(Self::In) -> FY + Send + Sync) -> FY;
 }
 
-pub fn flat_map<'a, FX, FY, X, Y>(ev: &impl Monad<'a, FX, FY, In=X, Out=Y>,
-                              f: FX, func: impl 'a + Fn(X) -> FY + Send + Sync) -> FY
-    where FX: F<X>,
+pub trait MonadEffect<'a, FX, FY, X, Y>
+    where
+        FX: F<X>,
+        FY: F<Y> {
+    type Fct: Monad<'a, FX, FY, In=X, Out=Y> + Effect;
+    fn monad(&self) -> Self::Fct;
+}
+
+pub fn flat_map<'a, FX, FY, X, Y>(f: FX, func: impl 'a + Fn(X) -> FY + Send + Sync) -> FY
+    where FX: F<X> + MonadEffect<'a, FX, FY, X, Y>,
           FY: F<Y> {
-    ev.flat_map(f, func)
+    f.monad().flat_map(f, func)
 }
 
 /// A typeclass which can provide a folding feature, which "rolls" up a type into a new type.
@@ -29,38 +36,24 @@ pub fn flat_map<'a, FX, FY, X, Y>(ev: &impl Monad<'a, FX, FY, In=X, Out=Y>,
 /// to differentiate the final return from the accumulation function.  This allows types like
 /// `Future` to accumulate values inside, yet still return a `Future` for that accumulated value
 /// rather than blocking for the Future's completion.
-pub trait Foldable<'a, FX, X, Y, Z>
+pub trait Foldable<'a, FX, X, Y, Z>: Effect
     where FX: F<X> {
     fn fold(&self, f: FX, init: Y, func: impl 'a + Fn(Y, X) -> Y + Send + Sync) -> Z;
 }
 
-/// A specialized fold for vectors of Foldables, especially in cases where the vector should roll
-/// up into a different type and/or has some special roll-up mechanics (like `Future` types, which
-/// generally have to map and chain the futures together into one big `Future`, rather than
-/// accumulate and combine on the fly. As in the normal fold, For this reason, a type `Z` is
-/// provided here to differentiate the final return from the accumulation function.
-///
-/// The type restrictions on the impl are particular because it is a vector operation.  Therefore,
-/// the closure must be able to be shared amongst many elements in the vector, potentially being
-/// stored in a `Future` or other type, meaning it has to be `move`d into each element's result
-/// to prevent lifetime issues, which necessitates that the closure be `Copy`able.
-pub trait VecFoldable<'a, FX, X, Y, Z, T>
-    where FX: F<X>,
-          T: Foldable<'a, FX, X, Y, Z>{
-    fn fold(&self, f: Vec<FX>, init: Y, func: impl 'a + Fn(Y, X) -> Y + Send + Sync + Copy) -> Z;
+pub trait FoldableEffect<'a, FX, X, Y, Z>
+    where
+        FX: F<X> {
+    type Fct: Foldable<'a, FX, X, Y, Z> + Effect;
+    fn foldable(&self) -> Self::Fct;
 }
 
-pub fn fold<'a, FX, X, Y, Z>(ev: &impl Foldable<'a, FX, X, Y, Z>, f: FX,
+pub fn fold<'a, FX, X, Y, Z>(f: FX,
                              init: Y,
                              func: impl 'a + Fn(Y, X) -> Y + Send + Sync) -> Z
-    where FX: F<X> {
-    ev.fold(f, init, func)
+    where FX: F<X> + FoldableEffect<'a, FX, X, Y, Z> {
+    f.foldable().fold(f, init, func)
 }
 
-pub fn vfold<'a, FX, X, Y, Z, T: Foldable<'a, FX, X, Y, Z>>(ev: &impl VecFoldable<'a, FX, X, Y, Z, T>,
-                                                            f: Vec<FX>,
-                                                            init: Y,
-                                                            func: impl 'a + Fn(Y, X) -> Y + Send + Sync + Copy) -> Z
-    where FX: F<X> {
-    ev.fold(f, init, func)
-}
+
+
