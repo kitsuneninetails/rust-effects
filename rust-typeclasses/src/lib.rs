@@ -1,3 +1,4 @@
+#![feature(associated_type_bounds)]
 pub mod option;
 pub mod result;
 pub mod typeclasses;

@@ -30,15 +30,28 @@ impl<'a, X: Clone, Y: Clone> ProductableEffect<Option<X>, Option<Y>, Option<(X, 
 }
 
 pub struct OptionEffect;
-
+impl OptionEffect {
+    fn combine_options<X, X2, XR, F>(a: Option<X>,
+                                     b: Option<X2>,
+                                     func: F) -> Option<XR>
+    where
+    F: FnOnce(X, X2) -> XR {
+        a.and_then(|i| b.map(|j| func(i, j)))
+    }
+}
 impl Effect for OptionEffect {}
-
-
 impl<X, X2, XR> Semigroup<Option<X>, Option<X2>, Option<XR>> for OptionEffect
     where
         X: SemigroupEffect<X, X2, XR> {
     fn combine(a: Option<X>, b: Option<X2>) -> Option<XR> {
-        a.and_then(|i| b.map(|j| combine(i, j)))
+        OptionEffect::combine_options(a, b, combine)
+    }
+}
+impl <X> SemigroupInner<Option<X>, X> for OptionEffect {
+    fn combine_inner<TO>(a: Option<X>, b: Option<X>) -> Option<X>
+        where
+            TO: Semigroup<X, X, X> {
+        Self::combine_options(a, b, TO::combine)
     }
 }
 impl<X> Monoid<Option<X>> for OptionEffect {
@@ -106,6 +119,18 @@ mod tests {
 
         let out = combine(a, b);
         assert_eq!("Hello World", out.unwrap());
+
+        let a = Some(3);
+        let b = Some(4);
+
+        let out = OptionEffect::combine_inner::<IntMulSemigroup>(a, b);
+        assert_eq!(Some(12), out);
+
+        let a = Some(3);
+        let b = Some(4);
+
+        let out = combine_inner::<_, _, IntMulSemigroup>(a, b);
+        assert_eq!(Some(12), out);
     }
 
     #[test]

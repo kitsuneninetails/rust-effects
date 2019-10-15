@@ -30,6 +30,15 @@ impl<'a, X: Clone, Y: Clone, E> ProductableEffect<Result<X,E>, Result<Y,E>, Resu
 }
 
 pub struct ResultEffect;
+impl ResultEffect {
+    fn combine_results<X, X2, XR, E, F>(a: Result<X, E>,
+                                     b: Result<X2, E>,
+                                     func: F) -> Result<XR, E>
+        where
+            F: FnOnce(X, X2) -> XR {
+        a.and_then(|i| b.map(|j| func(i, j)))
+    }
+}
 impl Effect for ResultEffect
 {}
 
@@ -40,7 +49,14 @@ impl<X, X2, XR, E> Semigroup<
     where
         X: SemigroupEffect<X, X2, XR> {
     fn combine(a: Result<X, E>, b: Result<X2, E>) -> Result<XR, E> {
-        a.and_then(|i| b.map(|j| combine(i, j)))
+        Self::combine_results(a, b, combine)
+    }
+}
+impl <X, E> SemigroupInner<Result<X, E>, X> for ResultEffect {
+    fn combine_inner<TO>(a: Result<X, E>, b: Result<X, E>) -> Result<X, E>
+        where
+            TO: Semigroup<X, X, X> {
+        Self::combine_results(a, b, TO::combine)
     }
 }
 impl<X, E: Default> Monoid<Result<X, E>> for ResultEffect {
@@ -108,6 +124,18 @@ mod tests {
 
         let out: Result<String, ()> = combine(a, b);
         assert_eq!("Hello World", out.unwrap());
+
+        let a = Ok(3);
+        let b = Ok(5);
+
+        let out: Result<i32, ()> = ResultEffect::combine_inner::<IntMulSemigroup>(a, b);
+        assert_eq!(Ok(15), out);
+
+        let a = Ok(3);
+        let b = Ok(5);
+
+        let out: Result<i32, ()> = combine_inner::<_, _, IntMulSemigroup>(a, b);
+        assert_eq!(Ok(15), out);
     }
 
     #[test]

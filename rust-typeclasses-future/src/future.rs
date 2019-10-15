@@ -3,8 +3,23 @@ use futures::prelude::*;
 use futures::future::{ready, BoxFuture, FutureExt};
 use futures::Poll;
 use futures::task::Context;
-use std::marker::PhantomData;
 use std::pin::Pin;
+
+pub trait SemigroupFutureInner<'a, T, X>
+    where
+        X: 'a + Send + Sync {
+    fn combine_future_inner<TO>(a: T, b: T) -> T
+        where
+            TO: 'a + Semigroup<X, X, X> + Send + Sync;
+}
+
+pub fn combine_future_inner<'a, T, X, TO>(a: T, b: T) -> T
+    where
+        X: 'a + Send + Sync,
+        T: 'a + SemigroupEffect<T, T, T, Fct: SemigroupFutureInner<'a, T, X>> + Send + Sync,
+        TO: 'a + Semigroup<X, X, X> + Send + Sync {
+    T::Fct::combine_future_inner::<TO>(a, b)
+}
 
 pub struct ConcreteFuture<'a, X> {
     pub inner: BoxFuture<'a, X>
@@ -90,6 +105,21 @@ impl<'a, X> Future for ConcreteFuture<'a, X> {
 
 #[derive(Clone, Debug)]
 pub struct FutureEffect;
+
+impl FutureEffect {
+    fn combine_futures<'a, X1, X2, R, Fn>(a: ConcreteFuture<'a, X1>,
+                                          b: ConcreteFuture<'a, X2>,
+                                          func: Fn) -> ConcreteFuture<'a, R>
+        where
+            X1: 'a + Send + Sync,
+            X2: 'a + Send + Sync,
+            R: 'a + Send + Sync,
+            Fn: 'a + FnOnce(X1, X2) -> R + Send + Sync {
+        let fr = a.then(move |i| b.map(move |j| func(i, j)));
+        ConcreteFuture::new(fr)
+    }
+}
+
 impl Effect for FutureEffect {}
 
 pub const FUT_EV: &FutureEffect = &FutureEffect;
@@ -110,9 +140,20 @@ impl<'a, X1, X2, R> Semigroup<
         R: 'a + Send + Sync {
     fn combine(a: ConcreteFuture<'a, X1>,
                b: ConcreteFuture<'a, X2>) -> ConcreteFuture<'a, R> {
-        let fr = a.then(move |i| b.map(move |j| combine(i, j)));
+        Self::combine_futures(a, b, combine)
+    }
+}
 
-        ConcreteFuture::new(fr)
+impl <'a, X> SemigroupFutureInner<
+    'a,
+    ConcreteFuture<'a, X>,
+    X> for FutureEffect
+    where
+        X: 'a + Send + Sync {
+    fn combine_future_inner<TO>(a: ConcreteFuture<'a, X>, b: ConcreteFuture<'a, X>) -> ConcreteFuture<'a, X>
+        where
+            TO: 'a + Semigroup<X, X, X> {
+        Self::combine_futures(a, b, TO::combine)
     }
 }
 
@@ -234,9 +275,14 @@ mod tests {
     fn test_semigroup() {
         block_on(async {
             let f1: ConcreteFuture<u32> = pure(1);
-            let f2: ConcreteFuture<u32> = pure(2u32);
+            let f2: ConcreteFuture<u32> = pure(2);
             let fr = combine(f1, f2);
             assert_eq!(fr.await, 3);
+
+            let f1: ConcreteFuture<u32> = pure(3);
+            let f2: ConcreteFuture<u32> = pure(5);
+            let fr = FutureEffect::combine_future_inner::<IntMulSemigroup>(f1, f2);
+            assert_eq!(fr.await, 2);
         });
     }
 

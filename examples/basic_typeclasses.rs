@@ -19,16 +19,16 @@ fn main() {
 
     let res = flat_map(o1, |x| r1.ok().map(|y| x + y));
 
-    println!("Result of flatmap is {:?}", res);
+    println!("Result of flatmap to add the two is {:?}", res);
 
-    println!("If we combine it with an 'empty': {:?}",
+    println!("If we combine that result with an 'empty': {:?}",
              combine(res.clone(), empty()));
 
     println!("If we combine it with a Some(5) with Add: {:?}",
              combine(res.clone(), Some(5u32)));
 
-    println!("BROKEN - If we combine it with a Some(5) with Mul: {:?}",
-             combine(res.clone(), Some(5u32)));
+    println!("If we combine it with a Some(5) with Mul: {:?}",
+             combine_inner::<_, _, IntMulSemigroup>(res.clone(), Some(5u32)));
 
     let op_4 = func_which_takes_monad_and_addables(Some(3), 1);
     println!("Some(3) passed to general add1 func -> {:?}", op_4);

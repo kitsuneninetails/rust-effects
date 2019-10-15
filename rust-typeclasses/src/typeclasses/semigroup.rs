@@ -1,4 +1,3 @@
-use std::marker::PhantomData;
 use super::Effect;
 
 /// Semigroup Typeclass
@@ -28,10 +27,21 @@ pub trait SemigroupEffect<T, T2, TR> {
     type Fct: Semigroup<T, T2, TR>;
 }
 
+pub trait SemigroupInner<T, X> {
+    fn combine_inner<TO>(a: T, b: T) -> T where TO: Semigroup<X, X, X>;
+}
+
 pub fn combine<T, T2, TR>(a: T, b: T2) -> TR
     where
         T: SemigroupEffect<T, T2, TR> {
     T::Fct::combine(a, b)
+}
+
+pub fn combine_inner<T, X, TO>(a: T, b: T) -> T
+    where
+        T: SemigroupEffect<T, T, T, Fct: SemigroupInner<T, X>>,
+        TO: Semigroup<X, X, X> {
+    T::Fct::combine_inner::<TO>(a, b)
 }
 
 // String types
