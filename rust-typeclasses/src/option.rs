@@ -13,19 +13,30 @@ impl<X> ApplicativeEffect for Option<X> {
     type X = X;
     type Fct = OptionEffect;
 }
-impl<'a, X, Y> MonadEffect<'a, Option<X>, Option<Y>, X, Y> for Option<X> {
+impl<'a, X, Y> MonadEffect<'a, X, Y> for Option<X> {
+    type FX = Option<X>;
+    type FY = Option<Y>;
     type Fct = OptionEffect;
 }
-impl<'a, X, Y: Clone> FoldableEffect<'a, Option<X>, X, Y, Y> for Option<X> {
+impl<'a, X, Y: Clone> FoldableEffect<'a, X, Y, Y> for Option<X> {
+    type FX = Option<X>;
     type Fct = OptionEffect;
 }
-impl<'a, X, Y> FunctorEffect<'a, Option<X>, Option<Y>, X, Y> for Option<X> {
+impl<'a, X, Y> FunctorEffect<'a, X, Y> for Option<X> {
+    type FX = Option<X>;
+    type FY = Option<Y>;
     type Fct = OptionEffect;
 }
-impl<'a, X, Y, Z> Functor2Effect<'a, Option<X>, Option<Y>, Option<Z>, X, Y, Z> for Option<X> {
+impl<'a, X, Y, Z> Functor2Effect<'a, X, Y, Z> for Option<X> {
+    type FX = Option<X>;
+    type FY = Option<Y>;
+    type FZ = Option<Z>;
     type Fct = OptionEffect;
 }
-impl<'a, X: Clone, Y: Clone> ProductableEffect<Option<X>, Option<Y>, Option<(X, Y)>, X, Y> for Option<X> {
+impl<'a, X: Clone, Y: Clone> ProductableEffect<X, Y> for Option<X> {
+    type FX = Option<X>;
+    type FY = Option<Y>;
+    type FXY = Option<(X, Y)>;
     type Fct = OptionEffect;
 }
 
@@ -59,39 +70,49 @@ impl<X> Monoid<Option<X>> for OptionEffect {
         None
     }
 }
-impl<X> Applicative<Option<X>, X> for OptionEffect {
-    fn pure(x: X) -> Option<X> {
+impl<X> Applicative<X> for OptionEffect {
+    type FX = Option<X>;
+    fn pure(x: X) -> Self::FX {
         Some(x)
     }
 }
-impl<'a, X, Y> Functor<'a, Option<X>, Option<Y>, X, Y> for OptionEffect {
-    fn fmap(f: Option<X>, func: impl 'a + Fn(X) -> Y + Send + Sync) -> Option<Y> {
+impl<'a, X, Y> Functor<'a, X, Y> for OptionEffect {
+    type FX = Option<X>;
+    type FY = Option<Y>;
+    fn fmap(f: Self::FX, func: impl 'a + Fn(X) -> Y + Send + Sync) -> Self::FY {
         f.map(func)
     }
 }
-impl<'a, X, Y, Z> Functor2<'a, Option<X>, Option<Y>, Option<Z>, X, Y, Z> for OptionEffect {
-    fn fmap2(fa: Option<X>, fb: Option<Y>, func: impl 'a + Fn(X, Y) -> Z + Send + Sync) -> Option<Z> {
+impl<'a, X, Y, Z> Functor2<'a, X, Y, Z> for OptionEffect {
+    type FX = Option<X>;
+    type FY = Option<Y>;
+    type FZ = Option<Z>;
+    fn fmap2(fa: Self::FX, fb: Self::FY, func: impl 'a + Fn(X, Y) -> Z + Send + Sync) -> Self::FZ {
         fa.and_then(|i| fb.map(|j| func(i, j)))
     }
 }
-impl<'a, X, Y> Monad<'a, Option<X>, Option<Y>> for OptionEffect {
-    type In = X;
-    type Out = Y;
+impl<'a, X, Y> Monad<'a, X, Y> for OptionEffect {
+    type FX = Option<X>;
+    type FY = Option<Y>;
 
-    fn flat_map(f: Option<X>, func: impl 'a + Fn(X) -> Option<Y> + Send + Sync) -> Option<Y> {
+    fn flat_map(f: Self::FX, func: impl 'a + Fn(X) -> Self::FY + Send + Sync) -> Self::FY {
         f.and_then(func)
     }
 }
-impl<'a, X, Y: Clone> Foldable<'a, Option<X>, X, Y, Y> for OptionEffect {
-    fn fold(f: Option<X>, init: Y, func: impl 'a + Fn(Y, X) -> Y + Send + Sync) -> Y {
+impl<'a, X, Y: Clone> Foldable<'a, X, Y, Y> for OptionEffect {
+    type FX = Option<X>;
+    fn fold(f: Self::FX, init: Y, func: impl 'a + Fn(Y, X) -> Y + Send + Sync) -> Y {
         match f {
             Some(i) => func(init, i),
             None => init
         }
     }
 }
-impl<X: Clone, Y: Clone> Productable<Option<X>, Option<Y>, Option<(X, Y)>, X, Y> for OptionEffect {
-    fn product(fa: Option<X>, fb: Option<Y>) -> Option<(X, Y)> {
+impl<X: Clone, Y: Clone> Productable<X, Y> for OptionEffect {
+    type FX = Option<X>;
+    type FY = Option<Y>;
+    type FXY = Option<(X, Y)>;
+    fn product(fa: Self::FX, fb: Self::FY) -> Self::FXY {
         fmap2(fa, fb, |a, b| (a.clone(), b.clone()))
     }
 }

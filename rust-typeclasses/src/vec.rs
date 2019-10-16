@@ -11,29 +11,40 @@ impl<X> ApplicativeEffect for Vec<X> {
     type X = X;
     type Fct = VecEffect;
 }
-impl<'a, X, Y> MonadEffect<'a, Vec<X>, Vec<Y>, X, Y> for Vec<X> {
+impl<'a, X, Y> MonadEffect<'a, X, Y> for Vec<X> {
+    type FX = Vec<X>;
+    type FY = Vec<Y>;
     type Fct = VecEffect;
 }
-impl<'a, X, Y> FoldableEffect<'a, Vec<X>, X, Y, Y> for Vec<X> {
+impl<'a, X, Y> FoldableEffect<'a, X, Y, Y> for Vec<X> {
+    type FX = Vec<X>;
     type Fct = VecEffect;
 }
-impl<'a, X, Y> FunctorEffect<'a, Vec<X>, Vec<Y>, X, Y> for Vec<X> {
+impl<'a, X, Y> FunctorEffect<'a, X, Y> for Vec<X> {
+    type FX = Vec<X>;
+    type FY = Vec<Y>;
     type Fct = VecEffect;
 }
-impl<'a, X, Y, Z> Functor2Effect<'a, Vec<X>, Vec<Y>, Vec<Z>, X, Y, Z> for Vec<X>
+impl<'a, X, Y, Z> Functor2Effect<'a, X, Y, Z> for Vec<X>
     where
         X: Clone,
         Y: Clone {
+    type FX = Vec<X>;
+    type FY = Vec<Y>;
+    type FZ = Vec<Z>;
     type Fct = VecEffect;
 }
-impl<'a, X: Clone, Y: Clone> ProductableEffect<Vec<X>, Vec<Y>, Vec<(X, Y)>, X, Y> for Vec<X> {
+impl<'a, X: Clone, Y: Clone> ProductableEffect<X, Y> for Vec<X> {
+    type FX = Vec<X>;
+    type FY = Vec<Y>;
+    type FXY = Vec<(X, Y)>;
     type Fct = VecEffect;
 }
 impl<'a, E, FR, X, Y, T> TraverseEffect<'a, Vec<X>, E, Vec<Y>, FR, X, Y> for Vec<X>
     where
-        E: F<Y> + Functor2Effect<'a, E, FR, FR, Y, Vec<Y>, Vec<Y>>,
+        E: F<Y> + Functor2Effect<'a, Y, Vec<Y>, Vec<Y>, FX=E, FY=FR, FZ=FR>,
         FR: F<Vec<Y>> + ApplicativeEffect<X=Vec<Y>, Fct=T>,
-        T: Applicative<FR, Vec<Y>> {
+        T: Applicative<Vec<Y>, FX=FR> {
     type Fct = VecEffect;
 }
 
@@ -54,50 +65,60 @@ impl<X> Monoid<Vec<X>> for VecEffect {
         vec![]
     }
 }
-impl<X> Applicative<Vec<X>, X> for VecEffect {
-    fn pure(x: X) -> Vec<X> {
+impl<X> Applicative<X> for VecEffect {
+    type FX = Vec<X>;
+    fn pure(x: X) -> Self::FX {
         vec![x]
     }
 }
-impl<'a, X, Y> Functor<'a, Vec<X>, Vec<Y>, X, Y> for VecEffect {
-    fn fmap(f: Vec<X>, func: impl 'a + Fn(X) -> Y + Send + Sync) -> Vec<Y> {
+impl<'a, X, Y> Functor<'a, X, Y> for VecEffect {
+    type FX = Vec<X>;
+    type FY = Vec<Y>;
+    fn fmap(f: Self::FX, func: impl 'a + Fn(X) -> Y + Send + Sync) -> Self::FY {
         f.into_iter().map(func).collect()
     }
 }
-impl<'a, X, Y, Z> Functor2<'a, Vec<X>, Vec<Y>, Vec<Z>, X, Y, Z> for VecEffect
+impl<'a, X, Y, Z> Functor2<'a, X, Y, Z> for VecEffect
     where X: Clone,
           Y: Clone {
-    fn fmap2(fa: Vec<X>, fb: Vec<Y>, func: impl 'a + Fn(X, Y) -> Z + Send + Sync) -> Vec<Z> {
+    type FX = Vec<X>;
+    type FY = Vec<Y>;
+    type FZ = Vec<Z>;
+    fn fmap2(fa: Self::FX, fb: Self::FY, func: impl 'a + Fn(X, Y) -> Z + Send + Sync) -> Self::FZ {
         fa.into_iter().flat_map(|i| {
             let ret: Vec<Z> = fb.iter().map(|j| func(i.clone(), j.clone())).collect();
             ret
         }).collect()
     }
 }
-impl<'a, X, Y> Monad<'a, Vec<X>, Vec<Y>> for VecEffect {
-    type In = X;
-    type Out = Y;
+impl<'a, X, Y> Monad<'a, X, Y> for VecEffect {
+    type FX = Vec<X>;
+    type FY = Vec<Y>;
 
-    fn flat_map(f: Vec<X>, func: impl 'a + Fn(X) -> Vec<Y> + Send + Sync) -> Vec<Y> {
+    fn flat_map(f: Self::FX, func: impl 'a + Fn(X) -> Self::FY + Send + Sync) -> Self::FY {
         f.into_iter().flat_map(func).collect()
     }
 }
-impl<'a, X, Y> Foldable<'a, Vec<X>, X, Y, Y> for VecEffect {
-    fn fold(f: Vec<X>, init: Y, func: impl 'a + Fn(Y, X) -> Y + Send + Sync) -> Y {
+impl<'a, X, Y> Foldable<'a, X, Y, Y> for VecEffect {
+    type FX = Vec<X>;
+    fn fold(f: Self::FX, init: Y, func: impl 'a + Fn(Y, X) -> Y + Send + Sync) -> Y {
         f.into_iter().fold(init, func)
     }
 }
-impl<X: Clone, Y: Clone> Productable<Vec<X>, Vec<Y>, Vec<(X, Y)>, X, Y> for VecEffect {
-    fn product(fa: Vec<X>, fb: Vec<Y>) -> Vec<(X, Y)> {
+impl<X: Clone, Y: Clone> Productable<X, Y> for VecEffect {
+    type FX = Vec<X>;
+    type FY = Vec<Y>;
+    type FXY = Vec<(X, Y)>;
+    fn product(fa: Self::FX, fb: Self::FY) -> Self::FXY {
         fmap2(fa, fb, |a, b| (a.clone(), b.clone()))
     }
 }
 
 impl<'a, E, FR, X, Y, T> Traverse<'a, Vec<X>, E, Vec<Y>, FR, X, Y> for VecEffect
     where
-        E: F<Y> + Functor2Effect<'a, E, FR, FR, Y, Vec<Y>, Vec<Y>>,
+        E: F<Y> + Functor2Effect<'a, Y, Vec<Y>, Vec<Y>, FX=E, FY=FR, FZ=FR>,
         FR: F<Vec<Y>> + ApplicativeEffect<X=Vec<Y>, Fct=T>,
-        T: Applicative<FR, Vec<Y>>{
+        T: Applicative<Vec<Y>, FX=FR>{
     fn traverse(fa: Vec<X>,
                 func: impl Fn(X) -> E + Send + Sync) -> FR {
         // Initialize the fold to the pure value of the resulting effect (Future, Option, IO, etc.)

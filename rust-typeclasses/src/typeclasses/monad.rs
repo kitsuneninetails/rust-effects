@@ -4,23 +4,20 @@ use super::{F, Effect};
 /// of type `F<_>` which operates on a type `X` which can perform a new function returning
 /// another context for the given type `X`.  This context is then "flattened" into the originating
 /// context, essentially taking its place as the context holder for `X`.
-pub trait Monad<'a, FX, FY>: Effect
-    where FX: F<Self::In>,
-          FY: F<Self::Out> {
-    type In;
-    type Out;
-    fn flat_map(f: FX, func: impl 'a + Fn(Self::In) -> FY + Send + Sync) -> FY;
+pub trait Monad<'a, X, Y>: Effect {
+    type FX: F<X>;
+    type FY: F<Y>;
+    fn flat_map(f: Self::FX, func: impl 'a + Fn(X) -> Self::FY + Send + Sync) -> Self::FY;
 }
 
-pub trait MonadEffect<'a, FX, FY, X, Y>
-    where
-        FX: F<X>,
-        FY: F<Y> {
-    type Fct: Monad<'a, FX, FY, In=X, Out=Y> + Effect;
+pub trait MonadEffect<'a, X, Y> {
+    type FX: F<X>;
+    type FY: F<Y>;
+    type Fct: Monad<'a, X, Y, FX=Self::FX, FY=Self::FY> + Effect;
 }
 
 pub fn flat_map<'a, FX, FY, X, Y>(f: FX, func: impl 'a + Fn(X) -> FY + Send + Sync) -> FY
-    where FX: F<X> + MonadEffect<'a, FX, FY, X, Y>,
+    where FX: F<X> + MonadEffect<'a, X, Y, FX=FX, FY=FY>,
           FY: F<Y> {
     FX::Fct::flat_map(f, func)
 }
@@ -35,21 +32,20 @@ pub fn flat_map<'a, FX, FY, X, Y>(f: FX, func: impl 'a + Fn(X) -> FY + Send + Sy
 /// to differentiate the final return from the accumulation function.  This allows types like
 /// `Future` to accumulate values inside, yet still return a `Future` for that accumulated value
 /// rather than blocking for the Future's completion.
-pub trait Foldable<'a, FX, X, Y, Z>: Effect
-    where FX: F<X> {
-    fn fold(f: FX, init: Y, func: impl 'a + Fn(Y, X) -> Y + Send + Sync) -> Z;
+pub trait Foldable<'a, X, Y, Z>: Effect {
+    type FX: F<X>;
+    fn fold(f: Self::FX, init: Y, func: impl 'a + Fn(Y, X) -> Y + Send + Sync) -> Z;
 }
 
-pub trait FoldableEffect<'a, FX, X, Y, Z>
-    where
-        FX: F<X> {
-    type Fct: Foldable<'a, FX, X, Y, Z> + Effect;
+pub trait FoldableEffect<'a, X, Y, Z> {
+    type FX: F<X>;
+    type Fct: Foldable<'a, X, Y, Z, FX=Self::FX> + Effect;
 }
 
 pub fn fold<'a, FX, X, Y, Z>(f: FX,
                              init: Y,
                              func: impl 'a + Fn(Y, X) -> Y + Send + Sync) -> Z
-    where FX: F<X> + FoldableEffect<'a, FX, X, Y, Z> {
+    where FX: F<X> + FoldableEffect<'a, X, Y, Z, FX=FX> {
     FX::Fct::fold(f, init, func)
 }
 

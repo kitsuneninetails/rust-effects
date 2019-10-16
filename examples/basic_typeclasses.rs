@@ -6,8 +6,8 @@ use std::ops::Add;
 fn func_which_takes_monad_and_addables<'a, FX, X, T>(item: FX, add: X) -> FX
 where
     X: 'a +  Add<Output=X> + Clone + Send + Sync,
-    FX: F<X> + MonadEffect<'a, FX, FX, X, X> + ApplicativeEffect<X=X, Fct=T>,
-    T: Applicative<FX, X>
+    FX: F<X> + MonadEffect<'a, X, X, FX=FX, FY=FX> + ApplicativeEffect<X=X, Fct=T>,
+    T: Applicative<X, FX=FX>
 {
     flat_map(item, move |x| pure(x + add.clone()))
 }
