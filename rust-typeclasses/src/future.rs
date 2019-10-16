@@ -1,4 +1,4 @@
-use rust_typeclasses::prelude::*;
+use super::prelude::*;
 use futures::prelude::*;
 use futures::future::{ready, BoxFuture, FutureExt};
 use futures::Poll;
@@ -33,7 +33,13 @@ pub struct ConcreteFuture<'a, X> {
     }
 }
 
+pub fn fut<'a, T>(f: impl 'a + Send + Sync + Future<Output=T>) -> ConcreteFuture<'a, T> {
+    ConcreteFuture::new(f)
+}
+
+impl<X> F<X> for dyn Future<Output=X> {}
 impl<'a, X> F<X> for ConcreteFuture<'a, X> {}
+
 impl<'a, X, X2, XR> SemigroupEffect<
     ConcreteFuture<'a, X>,
     ConcreteFuture<'a, X2>,
@@ -282,7 +288,7 @@ mod tests {
             let f1: ConcreteFuture<u32> = pure(3);
             let f2: ConcreteFuture<u32> = pure(5);
             let fr = FutureEffect::combine_future_inner::<IntMulSemigroup>(f1, f2);
-            assert_eq!(fr.await, 2);
+            assert_eq!(fr.await, 15);
         });
     }
 
@@ -360,7 +366,7 @@ mod tests {
             let fs: Vec<u32> = vec![3, 10, 4];
             let fr = traverse(fs,
                               |x| ConcreteFuture::new(ready(x + 5)));
-            assert_eq!(fr.await, vec![9, 15, 8]);
+            assert_eq!(fr.await, vec![8, 15, 9]);
         });
     }
 }

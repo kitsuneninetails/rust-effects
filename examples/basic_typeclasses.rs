@@ -19,9 +19,9 @@ fn main() {
 
     let res = flat_map(o1, |x| r1.ok().map(|y| x + y));
 
-    println!("Result of flatmap to add the two is {:?}", res);
+    println!("Result of flatmap is {:?}", res);
 
-    println!("If we combine that result with an 'empty': {:?}",
+    println!("If we combine it with an 'empty': {:?}",
              combine(res.clone(), empty()));
 
     println!("If we combine it with a Some(5) with Add: {:?}",

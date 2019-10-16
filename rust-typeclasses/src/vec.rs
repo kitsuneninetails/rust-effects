@@ -129,7 +129,7 @@ impl<'a, E, FR, X, Y, T> Traverse<'a, Vec<X>, E, Vec<Y>, FR, X, Y> for VecEffect
                     // effect both match up to "positive" values (like success or Some()).
                     // These next lines won't even get called unless that is the case.
                     let r = pure::<Vec<Y>>(fx);
-                    combine(r, y)
+                    combine(y, r)
                 })
         })
     }

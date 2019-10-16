@@ -7,9 +7,22 @@ edition = "2018"
 [[examples]]
 name = "basic_typeclasses"
 
+[[examples]]
+name = "future_typeclasses"
+
+[[examples]]
+name = "future_traverse"
+
+[[examples]]
+name = "typeclass_power"
+
 [workspace]
-members = ["rust-typeclasses", "rust-typeclasses-future"]
+members = ["rust-typeclasses"]
 
 [dependencies]
 rust-typeclasses = {path="rust-typeclasses"}
-rust-typeclasses-future = {path="rust-typeclasses-future"}
+
+[dev-dependencies]
+serde = "*"
+serde_derive = "*"
+serde_json = "*"
