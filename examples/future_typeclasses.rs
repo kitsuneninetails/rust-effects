@@ -5,7 +5,6 @@ extern  crate serde_json;
 
 use rust_typeclasses::prelude::*;
 use rust_typeclasses::futures::prelude::*;
-use std::ops::Add;
 use serde_json::{to_string, from_str};
 use rust_typeclasses::futures::executor::block_on;
 
@@ -59,6 +58,7 @@ fn for_comp_chain_err<'a>(a: u32) -> ConcreteFuture<'a, Result<u32, String>> {
 }
 
 fn call_db_good(a: u32) -> Result<TestData, String> {
+    long_running_service();
     Ok(TestData {
         data: a + 20
     })
@@ -84,6 +84,14 @@ fn call_netcall_bad(_a: u32) -> Result<String, String> {
 
 fn main() {
     block_on(async {
+        println!("Using 'pure' on a function that takes a while will execute the function right \
+                   away, as 'pure' for Future will use 'ready', which evaluates the value and \
+                   prepares a Future just for that value (unlike 'lazy')");
+        let f1: ConcreteFuture<Result<TestData, String>> = pure(call_db_good(10));
+        println!("The future is now prepared, but we already had to wait (we haven't called 'await' \
+                  yet!), so instead let's use a function that creates a chain starting with a pure \
+                  on a real, concrete value before chaining a flat_map to the functions which take \
+                  a while to execute.");
         println!("Run essentially a 'for' comprehension through a fake netcall, db call, and \
                   yield the 'data' member of the resulting struct");
         let f1: ConcreteFuture<Result<u32, String>> = for_comp_chain(10);

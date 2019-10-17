@@ -14,88 +14,38 @@ struct TestData {
     data: u32
 }
 
-fn long_running_service() {
+fn db_call() -> u32 {
     println!("Simulating a long-running service, please wait...");
-    ::std::thread::sleep(::std::time::Duration::from_secs(5));
+    ::std::thread::sleep(::std::time::Duration::from_secs(3));
+    10
 }
 
-fn for_comp_chain<'a>(a: u32) -> ConcreteFuture<'a, Result<u32, String>> {
-    let r: Result<u32, String> = Ok(a);
-    let f1: ConcreteFuture<Result<u32, String>> = pure(r);
-    let f1 = flat_map(
-        f1,
-        |i| pure(
-            i.and_then(|j| call_netcall_good(j))));
-    let f1 = flat_map(
-        f1,
-        |i| pure(
-            i.and_then(|j| from_str::<TestData>(j.as_ref()).map_err(|e| format!("Parse err: {:?}", e)))));
-    let f1 = flat_map(
-        f1,
-        |i| pure(
-            i.and_then(|j| call_db_good(j.data))));
-    fmap(
-        f1,
-        |i| i.map(|j| j.data))
-}
-
-fn for_comp_chain_err<'a>(a: u32) -> ConcreteFuture<'a, Result<u32, String>> {
-    let f1: ConcreteFuture<Result<u32, String>> = pure(Ok(a));
-    let f1 = flat_map(
-        f1,
-        |i| pure(
-            i.and_then(|j| call_netcall_bad(j))));
-    let f1 = flat_map(
-        f1,
-        |i| pure(
-            i.and_then(|j| from_str::<TestData>(&j).map_err(|e| format!("Parse err: {:?}", e)))));
-    let f1 = flat_map(
-        f1,
-        |i| pure(
-            i.and_then(|j| call_db_good(j.data))));
-    fmap(
-        f1,
-        |i| i.map(|j| j.data))
-}
-
-fn call_db_good(a: u32) -> Result<TestData, String> {
-    Ok(TestData {
-        data: a + 20
-    })
-}
-
-fn call_db_bad(_a: u32) -> Result<TestData, String> {
-    long_running_service();
-    Err("Server is down".to_string())
-}
-
-fn call_netcall_good(a: u32) -> Result<String, String> {
-    long_running_service();
-    let d = TestData {
-        data: a + 100
-    };
-    to_string(&d).map_err(|e| format!("Serialize error: {:?}", e))
-}
-
-fn call_netcall_bad(_a: u32) -> Result<String, String> {
-    long_running_service();
-    Err("Network disconnected".to_string())
+fn main_caller<'a, FX, FR, A>(a: A) -> FR
+    where
+        A: Applicative<u32, FX=FX> + Monad<'a, u32, u32, FX=FX, FY=FX> + Functor<'a, u32, TestData, FX=FX, FY=FR>,
+        FX: F<u32>,
+        FR: F<TestData> {
+    let f: FX = A::pure(IntAddMonoid::empty());
+    let f = A::flat_map(f, |_| A::pure(db_call()));
+    A::fmap(f, |data| TestData { data })
 }
 
 fn main() {
-    block_on(async {
-        println!("Run essentially a 'for' comprehension through a fake netcall, db call, and \
-                  yield the 'data' member of the resulting struct");
-        let f1: ConcreteFuture<Result<u32, String>> = for_comp_chain(10);
-        println!("We have the future ready, but no code should have executed yet, so from now \
-                  there should be a 5 second gap, followed by the output 'Ok(130)'.");
-        println!("'for' comprehension output = {:?}", f1.await);
+    println!("Running an effectful function should be the same whether we run in it inline or \
+              async from a Future.  Running inline might be preferable for testing, etc. but we \
+              don't want to change the code, only the calling 'effect'.");
 
-        println!("Here is the same, but with an error introduced early, leading to the error \
-                  trickling down through: Err('Network disconnected')");
-        let f1 = for_comp_chain_err(10);
-        println!("'for' comprehension output = {:?}", f1.await);
-    })
+    block_on(async {
+        println!("Calling an effectful as a future, and then awaiting:");
+        let f: ConcreteFuture<TestData> = main_caller(FutureEffect::apply());
+        println!("Waiting on future now");
+        println!("Output = {:?}", f.await);
+    });
+
+    println!("Calling an effectful as a result immediately:");
+    let f: Result<TestData, String> = main_caller(ResultEffect::apply());
+    println!("Output = {:?}", f.unwrap());
+
 
 }
 

@@ -44,7 +44,14 @@ impl<'a, X: Clone, Y: Clone, E> ProductableEffect<X, Y> for Result<X,E> {
 pub struct ResultEffect<E> {
     _p: PhantomData<E>
 }
+
 impl<E> ResultEffect<E> {
+    pub fn apply() -> ResultEffect<E> {
+        ResultEffect {
+            _p: PhantomData
+        }
+    }
+
     fn combine_results<X, X2, XR, F>(a: Result<X, E>,
                                      b: Result<X2, E>,
                                      func: F) -> Result<XR, E>

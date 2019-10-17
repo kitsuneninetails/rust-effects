@@ -115,6 +115,12 @@ pub struct FutureEffect<'a> {
 }
 
 impl<'a> FutureEffect<'a> {
+    pub fn apply() -> FutureEffect<'a> {
+        FutureEffect {
+            _p: PhantomData,
+        }
+    }
+
     fn combine_futures<X1, X2, R, Fn>(a: ConcreteFuture<'a, X1>,
                                       b: ConcreteFuture<'a, X2>,
                                       func: Fn) -> ConcreteFuture<'a, R>
