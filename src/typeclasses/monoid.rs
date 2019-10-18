@@ -6,7 +6,7 @@ use super::Effect;
 /// method) which can combine values and an identity value for which the following holds true
 /// given a value A of type T and an identity value I of type T:
 ///
-/// A: T · I: V == A: T
+/// A: T · I: T == A: T
 ///
 /// for all legal values in type T.
 pub trait Monoid<M> : Effect {
