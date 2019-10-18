@@ -16,11 +16,8 @@ name = "future_traverse"
 [[examples]]
 name = "typeclass_power"
 
-[workspace]
-members = ["rust-typeclasses"]
-
 [dependencies]
-rust-typeclasses = {path="rust-typeclasses"}
+futures-preview = { version = "0.3.0-alpha.19" }
 
 [dev-dependencies]
 serde = "*"

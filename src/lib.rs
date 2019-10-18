@@ -2,6 +2,8 @@
 #![feature(associated_type_defaults)]
 #![feature(type_alias_impl_trait)]
 
+pub mod effects;
+pub mod effects_typeclasses;
 pub mod future;
 pub mod option;
 pub mod result;

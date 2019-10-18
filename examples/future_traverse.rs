@@ -1,12 +1,11 @@
-extern crate rust_typeclasses;
 extern crate serde;
 #[macro_use] extern crate serde_derive;
 extern  crate serde_json;
 
-use rust_typeclasses::prelude::*;
-use rust_typeclasses::futures::future::lazy;
+use rust_effects::prelude::*;
+use rust_effects::futures::future::lazy;
 use serde_json::from_str;
-use rust_typeclasses::futures::executor::block_on;
+use rust_effects::futures::executor::block_on;
 
 #[derive(Clone, Debug, Serialize, PartialEq, Deserialize)]
 struct TestData {

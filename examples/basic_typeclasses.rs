@@ -1,6 +1,4 @@
-extern crate rust_typeclasses;
-
-use rust_typeclasses::prelude::*;
+use rust_effects::prelude::*;
 use std::ops::Add;
 
 fn func_which_takes_monad_and_addables<'a, FX, X, T>(item: FX, add: X) -> FX

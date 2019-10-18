@@ -1,13 +1,12 @@
-extern crate rust_typeclasses;
 extern crate serde;
 #[macro_use] extern crate serde_derive;
 extern  crate serde_json;
 
-use rust_typeclasses::prelude::*;
-use rust_typeclasses::futures::prelude::*;
+use rust_effects::prelude::*;
+use rust_effects::futures::prelude::*;
 use std::ops::Add;
 use serde_json::{to_string, from_str};
-use rust_typeclasses::futures::executor::block_on;
+use rust_effects::futures::executor::block_on;
 
 #[derive(Clone, Debug, Serialize, PartialEq, Deserialize)]
 struct TestData {
@@ -27,6 +26,7 @@ fn main_caller<'a, FX, FR, A>(a: A) -> FR
         FR: F<TestData> {
     let f: FX = A::pure(IntAddMonoid::empty());
     let f = A::flat_map(f, |_| A::pure(db_call()));
+
     A::fmap(f, |data| TestData { data })
 }
 
