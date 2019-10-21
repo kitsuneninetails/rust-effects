@@ -1,45 +1,18 @@
 use super::prelude::*;
 use std::marker::PhantomData;
 
+#[macro_use] use crate::*;
+
 impl<X, E> F<X> for Result<X, E> {}
-impl<'a, X, X2, XR, E> SemigroupEffect<Result<X, E>, Result<X2, E>, Result<XR, E>> for Result<X, E>
-    where
-        X: SemigroupEffect<X, X2, XR> {
-    type Fct = ResultEffect<E>;
-}
-impl<X, E: Default> MonoidEffect<Result<X, E>> for Result<X, E> {
-    type Fct = ResultEffect<E>;
-}
-impl<X, E> ApplicativeEffect for Result<X, E> {
-    type X = X;
-    type Fct = ResultEffect<E>;
-}
-impl<'a, X, Y, E> MonadEffect<'a, X, Y> for Result<X, E> {
-    type FX = Result<X, E>;
-    type FY = Result<Y, E>;
-    type Fct = ResultEffect<E>;
-}
-impl<'a, X, Y: Clone, E> FoldableEffect<'a, X, Y, Y> for Result<X, E> {
-    type FX = Result<X,E>;
-    type Fct = ResultEffect<E>;
-}
-impl<'a, X, Y, E> FunctorEffect<'a, X, Y> for Result<X,E> {
-    type FX = Result<X, E>;
-    type FY = Result<Y, E>;
-    type Fct = ResultEffect<E>;
-}
-impl<'a, X, Y, Z, E> Functor2Effect<'a, X, Y, Z> for Result<X,E> {
-    type FX = Result<X, E>;
-    type FY = Result<Y, E>;
-    type FZ = Result<Z, E>;
-    type Fct = ResultEffect<E>;
-}
-impl<'a, X: Clone, Y: Clone, E> ProductableEffect<X, Y> for Result<X,E> {
-    type FX = Result<X, E>;
-    type FY = Result<Y, E>;
-    type FXY = Result<(X, Y), E>;
-    type Fct = ResultEffect<E>;
-}
+
+semigroup_effect! { 2, Result, ResultEffect }
+monoid_effect! { 2, Result, ResultEffect }
+applicative_effect! { 2, Result, ResultEffect }
+functor_effect! { 2, Result, ResultEffect }
+functor2_effect! { 2, Result, ResultEffect }
+monad_effect! { 2, Result, ResultEffect }
+foldable_effect! { 2, Result, ResultEffect }
+productable_effect! { 2, Result, ResultEffect }
 
 pub struct ResultEffect<E> {
     _p: PhantomData<E>
@@ -73,10 +46,10 @@ impl<X, X2, XR, E> Semigroup<
         Self::combine_results(a, b, combine)
     }
 }
-impl <X, E> SemigroupInner<Result<X, E>, X> for ResultEffect<E> {
+impl <'a, X, E> SemigroupInner<'a, Result<X, E>, X> for ResultEffect<E>  where X: 'a, E: 'a {
     fn combine_inner<TO>(a: Result<X, E>, b: Result<X, E>) -> Result<X, E>
         where
-            TO: Semigroup<X, X, X> {
+            TO: 'a + Semigroup<X, X, X> {
         Self::combine_results(a, b, TO::combine)
     }
 }

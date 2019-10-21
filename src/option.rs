@@ -1,44 +1,17 @@
 use super::prelude::*;
 
+#[macro_use] use crate::*;
+
 impl<X> F<X> for Option<X> {}
-impl<'a, X, X2, XR> SemigroupEffect<Option<X>, Option<X2>, Option<XR>> for Option<X>
-    where
-        X: SemigroupEffect<X, X2, XR> {
-    type Fct = OptionEffect;
-}
-impl<X> MonoidEffect<Option<X>> for Option<X> {
-    type Fct = OptionEffect;
-}
-impl<X> ApplicativeEffect for Option<X> {
-    type X = X;
-    type Fct = OptionEffect;
-}
-impl<'a, X, Y> MonadEffect<'a, X, Y> for Option<X> {
-    type FX = Option<X>;
-    type FY = Option<Y>;
-    type Fct = OptionEffect;
-}
-impl<'a, X, Y: Clone> FoldableEffect<'a, X, Y, Y> for Option<X> {
-    type FX = Option<X>;
-    type Fct = OptionEffect;
-}
-impl<'a, X, Y> FunctorEffect<'a, X, Y> for Option<X> {
-    type FX = Option<X>;
-    type FY = Option<Y>;
-    type Fct = OptionEffect;
-}
-impl<'a, X, Y, Z> Functor2Effect<'a, X, Y, Z> for Option<X> {
-    type FX = Option<X>;
-    type FY = Option<Y>;
-    type FZ = Option<Z>;
-    type Fct = OptionEffect;
-}
-impl<'a, X: Clone, Y: Clone> ProductableEffect<X, Y> for Option<X> {
-    type FX = Option<X>;
-    type FY = Option<Y>;
-    type FXY = Option<(X, Y)>;
-    type Fct = OptionEffect;
-}
+
+semigroup_effect! { 1, Option, OptionEffect }
+monoid_effect! { 1, Option, OptionEffect }
+applicative_effect! { 1, Option, OptionEffect }
+functor_effect! { 1, Option, OptionEffect }
+functor2_effect! { 1, Option, OptionEffect }
+monad_effect! { 1, Option, OptionEffect }
+foldable_effect! { 1C, Option, OptionEffect }
+productable_effect! { 1, Option, OptionEffect }
 
 pub struct OptionEffect;
 impl OptionEffect {
@@ -50,7 +23,9 @@ impl OptionEffect {
         a.and_then(|i| b.map(|j| func(i, j)))
     }
 }
+
 impl Effect for OptionEffect {}
+
 impl<X, X2, XR> Semigroup<Option<X>, Option<X2>, Option<XR>> for OptionEffect
     where
         X: SemigroupEffect<X, X2, XR> {
@@ -58,24 +33,28 @@ impl<X, X2, XR> Semigroup<Option<X>, Option<X2>, Option<XR>> for OptionEffect
         OptionEffect::combine_options(a, b, combine)
     }
 }
-impl <X> SemigroupInner<Option<X>, X> for OptionEffect {
+
+impl <'a, X> SemigroupInner<'a, Option<X>, X> for OptionEffect where X: 'a {
     fn combine_inner<TO>(a: Option<X>, b: Option<X>) -> Option<X>
         where
-            TO: Semigroup<X, X, X> {
+            TO: 'a + Semigroup<X, X, X> {
         Self::combine_options(a, b, TO::combine)
     }
 }
+
 impl<X> Monoid<Option<X>> for OptionEffect {
     fn empty() -> Option<X> {
         None
     }
 }
+
 impl<X> Applicative<X> for OptionEffect {
     type FX = Option<X>;
     fn pure(x: X) -> Self::FX {
         Some(x)
     }
 }
+
 impl<'a, X, Y> Functor<'a, X, Y> for OptionEffect {
     type FX = Option<X>;
     type FY = Option<Y>;
@@ -83,6 +62,7 @@ impl<'a, X, Y> Functor<'a, X, Y> for OptionEffect {
         f.map(func)
     }
 }
+
 impl<'a, X, Y, Z> Functor2<'a, X, Y, Z> for OptionEffect {
     type FX = Option<X>;
     type FY = Option<Y>;
@@ -91,6 +71,7 @@ impl<'a, X, Y, Z> Functor2<'a, X, Y, Z> for OptionEffect {
         fa.and_then(|i| fb.map(|j| func(i, j)))
     }
 }
+
 impl<'a, X, Y> Monad<'a, X, Y> for OptionEffect {
     type FX = Option<X>;
     type FY = Option<Y>;
@@ -99,6 +80,7 @@ impl<'a, X, Y> Monad<'a, X, Y> for OptionEffect {
         f.and_then(func)
     }
 }
+
 impl<'a, X, Y: Clone> Foldable<'a, X, Y, Y> for OptionEffect {
     type FX = Option<X>;
     fn fold(f: Self::FX, init: Y, func: impl 'a + Fn(Y, X) -> Y + Send + Sync) -> Y {

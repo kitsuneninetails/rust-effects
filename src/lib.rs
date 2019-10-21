@@ -9,6 +9,7 @@ pub mod option;
 pub mod result;
 pub mod typeclasses;
 pub mod vec;
+mod macros;
 
 pub extern crate futures;
 
@@ -23,6 +24,10 @@ pub mod prelude {
         traverse::*,
         F, Effect
     };
+    pub use crate::effects::{
+        io::*
+    };
+
     pub use crate::future::*;
     pub use crate::option::*;
     pub use crate::result::*;

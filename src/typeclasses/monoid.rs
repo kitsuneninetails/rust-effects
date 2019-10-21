@@ -1,4 +1,5 @@
 use super::Effect;
+use crate::{monoid_impl, monoid_eff_impl};
 
 /// The Monoid typeclass.  This provides the concept of a "zero" or "empty" value.  This should
 /// function as the identity for the typeclass.  Combined with Semigroup, this typeclass qualifies
@@ -19,22 +20,6 @@ pub trait MonoidEffect<M> {
 
 pub fn empty<X: MonoidEffect<X>>() -> X {
     X::Fct::empty()
-}
-
-macro_rules! monoid_impl {
-    ($m:ty, $v:expr, $($t:ty)+) => ($(
-        impl Monoid<$t> for $m {
-            fn empty() -> $t { $v }
-        }
-    )+)
-}
-
-macro_rules! monoid_eff_impl {
-    ($m:ty, $me:expr, $($t:ty)+) => ($(
-        impl MonoidEffect<$t> for $t {
-            type Fct = $m;
-        }
-    )+)
 }
 
 pub struct StringMonoid;

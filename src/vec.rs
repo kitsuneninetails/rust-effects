@@ -1,45 +1,17 @@
 use super::prelude::*;
+#[macro_use] use crate::*;
 
 impl<X> F<X> for Vec<X> {}
-impl<'a, X> SemigroupEffect<Vec<X>, Vec<X>, Vec<X>> for Vec<X> {
-    type Fct = VecEffect;
-}
-impl<X> MonoidEffect<Vec<X>> for Vec<X> {
-    type Fct = VecEffect;
-}
-impl<X> ApplicativeEffect for Vec<X> {
-    type X = X;
-    type Fct = VecEffect;
-}
-impl<'a, X, Y> MonadEffect<'a, X, Y> for Vec<X> {
-    type FX = Vec<X>;
-    type FY = Vec<Y>;
-    type Fct = VecEffect;
-}
-impl<'a, X, Y> FoldableEffect<'a, X, Y, Y> for Vec<X> {
-    type FX = Vec<X>;
-    type Fct = VecEffect;
-}
-impl<'a, X, Y> FunctorEffect<'a, X, Y> for Vec<X> {
-    type FX = Vec<X>;
-    type FY = Vec<Y>;
-    type Fct = VecEffect;
-}
-impl<'a, X, Y, Z> Functor2Effect<'a, X, Y, Z> for Vec<X>
-    where
-        X: Clone,
-        Y: Clone {
-    type FX = Vec<X>;
-    type FY = Vec<Y>;
-    type FZ = Vec<Z>;
-    type Fct = VecEffect;
-}
-impl<'a, X: Clone, Y: Clone> ProductableEffect<X, Y> for Vec<X> {
-    type FX = Vec<X>;
-    type FY = Vec<Y>;
-    type FXY = Vec<(X, Y)>;
-    type Fct = VecEffect;
-}
+
+semigroup_effect! { 1A, Vec, VecEffect }
+monoid_effect! { 1, Vec, VecEffect }
+applicative_effect! { 1, Vec, VecEffect }
+functor_effect! { 1, Vec, VecEffect }
+functor2_effect! { 1C, Vec, VecEffect }
+monad_effect! { 1, Vec, VecEffect }
+foldable_effect! { 1, Vec, VecEffect }
+productable_effect! { 1, Vec, VecEffect }
+
 impl<'a, E, FR, X, Y, T> TraverseEffect<'a, Vec<X>, E, Vec<Y>, FR, X, Y> for Vec<X>
     where
         E: F<Y> + Functor2Effect<'a, Y, Vec<Y>, Vec<Y>, FX=E, FY=FR, FZ=FR>,

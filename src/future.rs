@@ -6,21 +6,7 @@ use futures::task::Context;
 use std::pin::Pin;
 use std::marker::PhantomData;
 
-pub trait SemigroupFutureInner<'a, T, X>
-    where
-        X: 'a + Send + Sync {
-    fn combine_future_inner<TO>(a: T, b: T) -> T
-        where
-            TO: 'a + Semigroup<X, X, X> + Send + Sync;
-}
-
-pub fn combine_future_inner<'a, T, X, TO>(a: T, b: T) -> T
-    where
-        X: 'a + Send + Sync,
-        T: 'a + SemigroupEffect<T, T, T, Fct: SemigroupFutureInner<'a, T, X>> + Send + Sync,
-        TO: 'a + Semigroup<X, X, X> + Send + Sync {
-    T::Fct::combine_future_inner::<TO>(a, b)
-}
+#[macro_use] use crate::*;
 
 pub struct ConcreteFuture<'a, X> {
     pub inner: BoxFuture<'a, X>
@@ -41,65 +27,14 @@ pub fn fut<'a, T>(f: impl 'a + Send + Sync + Future<Output=T>) -> ConcreteFuture
 impl<X> F<X> for dyn Future<Output=X> {}
 impl<'a, X> F<X> for ConcreteFuture<'a, X> {}
 
-impl<'a, X, X2, XR> SemigroupEffect<
-    ConcreteFuture<'a, X>,
-    ConcreteFuture<'a, X2>,
-    ConcreteFuture<'a, XR>> for ConcreteFuture<'a, X>
-    where
-        X: 'a + SemigroupEffect<X, X2, XR> + Send + Sync,
-        X2: 'a + Send + Sync,
-        XR: 'a + Send + Sync {
-    type Fct = FutureEffect<'a>;
-}
-impl<'a, X: 'a + Send + Sync + Default> MonoidEffect<ConcreteFuture<'a, X>> for ConcreteFuture<'a, X> {
-    type Fct = FutureEffect<'a>;
-}
-impl<'a, X: 'a + Send + Sync> ApplicativeEffect for ConcreteFuture<'a, X> {
-    type X = X;
-    type Fct = FutureEffect<'a>;
-}
-impl<'a, X, Y> MonadEffect<'a, X, Y> for ConcreteFuture<'a, X>
-    where
-        X: 'a + Send + Sync,
-        Y: 'a + Send + Sync {
-    type FX = ConcreteFuture<'a, X>;
-    type FY = ConcreteFuture<'a, Y>;
-    type Fct = FutureEffect<'a>;
-}
-impl<'a, X, Y: Clone> FoldableEffect<'a, X, Y, ConcreteFuture<'a, Y>> for ConcreteFuture<'a, X>
-    where
-        X: 'a + Send + Sync,
-        Y: 'a + Send + Sync{
-    type FX = ConcreteFuture<'a, X>;
-    type Fct = FutureEffect<'a>;
-}
-impl<'a, X, Y> FunctorEffect<'a, X, Y> for ConcreteFuture<'a, X>
-    where
-        X: 'a + Send + Sync,
-        Y: 'a + Send + Sync {
-    type FX = ConcreteFuture<'a, X>;
-    type FY = ConcreteFuture<'a, Y>;
-    type Fct = FutureEffect<'a>;
-}
-impl<'a, X, Y, Z> Functor2Effect<'a, X, Y, Z> for ConcreteFuture<'a, X>
-    where
-        X: 'a + Send + Sync,
-        Y: 'a + Send + Sync,
-        Z: 'a + Send + Sync {
-    type FX = ConcreteFuture<'a, X>;
-    type FY = ConcreteFuture<'a, Y>;
-    type FZ = ConcreteFuture<'a, Z>;
-    type Fct = FutureEffect<'a>;
-}
-impl<'a, X: Clone, Y: Clone> ProductableEffect<X, Y> for ConcreteFuture<'a, X>
-    where
-        X: 'a + Send + Sync,
-        Y: 'a + Send + Sync {
-    type FX = ConcreteFuture<'a, X>;
-    type FY = ConcreteFuture<'a, Y>;
-    type FXY = ConcreteFuture<'a, (X, Y)>;
-    type Fct = FutureEffect<'a>;
-}
+semigroup_effect! { S, ConcreteFuture, FutureEffect }
+monoid_effect! { S, ConcreteFuture, FutureEffect }
+applicative_effect! { S, ConcreteFuture, FutureEffect }
+functor_effect! { S, ConcreteFuture, FutureEffect }
+functor2_effect! { S, ConcreteFuture, FutureEffect }
+monad_effect! { S, ConcreteFuture, FutureEffect }
+foldable_effect! { S, ConcreteFuture, FutureEffect }
+productable_effect! { S, ConcreteFuture, FutureEffect }
 
 impl<'a, X> Future for ConcreteFuture<'a, X> {
     type Output=X;
@@ -121,9 +56,9 @@ impl<'a> FutureEffect<'a> {
         }
     }
 
-    fn combine_futures<X1, X2, R, Fn>(a: ConcreteFuture<'a, X1>,
-                                      b: ConcreteFuture<'a, X2>,
-                                      func: Fn) -> ConcreteFuture<'a, R>
+    pub(crate) fn combine_futures<X1, X2, R, Fn>(a: ConcreteFuture<'a, X1>,
+                                                 b: ConcreteFuture<'a, X2>,
+                                                 func: Fn) -> ConcreteFuture<'a, R>
         where
             X1: 'a + Send + Sync,
             X2: 'a + Send + Sync,
@@ -156,13 +91,10 @@ impl<'a, X1, X2, R> Semigroup<
     }
 }
 
-impl <'a, X> SemigroupFutureInner<
-    'a,
-    ConcreteFuture<'a, X>,
-    X> for FutureEffect<'a>
+impl <'a, X> SemigroupInner<'a, ConcreteFuture<'a, X>, X> for FutureEffect<'a>
     where
         X: 'a + Send + Sync {
-    fn combine_future_inner<TO>(a: ConcreteFuture<'a, X>, b: ConcreteFuture<'a, X>) -> ConcreteFuture<'a, X>
+    fn combine_inner<TO>(a: ConcreteFuture<'a, X>, b: ConcreteFuture<'a, X>) -> ConcreteFuture<'a, X>
         where
             TO: 'a + Semigroup<X, X, X> {
         Self::combine_futures(a, b, TO::combine)
@@ -233,16 +165,13 @@ impl<'a, X, Y> Foldable<'a, X, Y, ConcreteFuture<'a, Y>> for FutureEffect<'a>
 /// A specialized fold for vectors of Futures which generally have to map and chain the futures
 /// together into one big `Future`, rather than accumulate and combine on the fly.
 pub fn vfold<'a, X, Y>(f: Vec<ConcreteFuture<'a, X>>,
-                   init: Y,
-                   func: impl 'a + Fn(Y, X) -> Y + Send + Sync + Copy) -> ConcreteFuture<'a, Y>
+                       init: Y,
+                       func: impl 'a + Fn(Y, X) -> Y + Send + Sync + Copy) -> ConcreteFuture<'a, Y>
     where
-        X: 'a + Send,
-        Y: 'a + Send {
-    let mut accum = ConcreteFuture::new(ready(init));
-    for i in f.into_iter() {
-        accum = ConcreteFuture::new(accum.then(move |y| i.map(move |x| func(y, x))));
-    }
-    accum
+        X: 'a + Send + Sync,
+        Y: 'a + Send + Sync {
+    VecEffect::fold(f, FutureEffect::pure(init), |a, i|
+        ConcreteFuture::new(a.then(move|y| i.map(move |x| func(y, x)))))
 }
 
 impl<'a, X: Clone, Y: Clone> Productable<X, Y> for FutureEffect<'a>
@@ -274,7 +203,7 @@ mod tests {
 
             let f1: ConcreteFuture<u32> = pure(3);
             let f2: ConcreteFuture<u32> = pure(5);
-            let fr = FutureEffect::combine_future_inner::<IntMulSemigroup>(f1, f2);
+            let fr = FutureEffect::combine_inner::<IntMulSemigroup>(f1, f2);
             assert_eq!(fr.await, 15);
         });
     }

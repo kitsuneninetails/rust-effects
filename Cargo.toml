@@ -14,6 +14,9 @@ name = "future_typeclasses"
 name = "future_traverse"
 
 [[examples]]
+name = "io_monad"
+
+[[examples]]
 name = "typeclass_power"
 
 [dependencies]

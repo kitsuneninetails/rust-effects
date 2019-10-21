@@ -1,4 +1,5 @@
 use super::Effect;
+use crate::{sg_impl, sg_eff_impl};
 
 /// Semigroup Typeclass
 /// Encapsulates any type which is "combine-able", in other words, can be combined to form
@@ -27,8 +28,8 @@ pub trait SemigroupEffect<T, T2, TR> {
     type Fct: Semigroup<T, T2, TR>;
 }
 
-pub trait SemigroupInner<T, X> {
-    fn combine_inner<TO>(a: T, b: T) -> T where TO: Semigroup<X, X, X>;
+pub trait SemigroupInner<'a, T, X> where T: 'a {
+    fn combine_inner<TO>(a: T, b: T) -> T where TO: 'a + Semigroup<X, X, X>;
 }
 
 pub fn combine<T, T2, TR>(a: T, b: T2) -> TR
@@ -37,10 +38,10 @@ pub fn combine<T, T2, TR>(a: T, b: T2) -> TR
     T::Fct::combine(a, b)
 }
 
-pub fn combine_inner<T, X, TO>(a: T, b: T) -> T
+pub fn combine_inner<'a, T, X, TO>(a: T, b: T) -> T
     where
-        T: SemigroupEffect<T, T, T, Fct: SemigroupInner<T, X>>,
-        TO: Semigroup<X, X, X> {
+        T: 'a + SemigroupEffect<T, T, T, Fct: SemigroupInner<'a, T, X>>,
+        TO: 'a + Semigroup<X, X, X> {
     T::Fct::combine_inner::<TO>(a, b)
 }
 
@@ -61,23 +62,6 @@ impl<T: ToString, T2: ToString> Semigroup<T, T2, String> for StringSemigroup {
 }
 
 // Integer and Rational types (add)
-
-macro_rules! sg_impl {
-    ($m:ty, $op:tt, $($t:ty)+) => ($(
-        impl Semigroup<$t, $t, $t> for $m {
-            fn combine(a: $t, b: $t) -> $t { a $op b }
-        }
-    )+)
-}
-
-macro_rules! sg_eff_impl {
-    ($m:ty, $($t:ty)+) => ($(
-        impl SemigroupEffect<$t, $t, $t> for $t {
-            type Fct = $m;
-        }
-    )+)
-}
-
 pub struct IntAddSemigroup;
 impl Effect for IntAddSemigroup {}
 
