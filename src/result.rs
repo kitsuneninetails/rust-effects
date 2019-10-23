@@ -1,7 +1,7 @@
 use super::prelude::*;
 use std::marker::PhantomData;
 
-#[macro_use] use crate::*;
+use crate::*;
 
 impl<X, E> F<X> for Result<X, E> {}
 
@@ -14,91 +14,109 @@ monad_effect! { 2, Result, ResultEffect }
 foldable_effect! { 2, Result, ResultEffect }
 productable_effect! { 2, Result, ResultEffect }
 
-pub struct ResultEffect<E> {
+pub struct ResultEffect<E, X=(), Y=(), Z=()> {
+    _a: PhantomData<X>,
+    _b: PhantomData<Y>,
+    _c: PhantomData<Z>,
     _p: PhantomData<E>
 }
 
-impl<E> ResultEffect<E> {
-    pub fn apply() -> ResultEffect<E> {
+impl<E, X, Y, Z> ResultEffect<E, X, Y, Z> {
+    pub fn apply(_: Z) -> Self {
         ResultEffect {
+            _a: PhantomData,
+            _b: PhantomData,
+            _c: PhantomData,
             _p: PhantomData
         }
     }
 
-    fn combine_results<X, X2, XR, F>(a: Result<X, E>,
-                                     b: Result<X2, E>,
-                                     func: F) -> Result<XR, E>
+    fn combine_results<X1, X2, XR, F>(a: Result<X1, E>,
+                                      b: Result<X2, E>,
+                                      func: F) -> Result<XR, E>
         where
-            F: FnOnce(X, X2) -> XR {
+            F: FnOnce(X1, X2) -> XR {
         a.and_then(|i| b.map(|j| func(i, j)))
     }
 }
-impl<E> Effect for ResultEffect<E>
-{}
+
+#[macro_export]
+macro_rules! result_monad {
+    () => (ResultEffect::apply(()))
+}
+
+impl<E, X, Y, Z> Effect for ResultEffect<E, X, Y, Z>{}
 
 impl<X, X2, XR, E> Semigroup<
     Result<X, E>,
     Result<X2, E>,
-    Result<XR, E>> for ResultEffect<E>
+    Result<XR, E>> for ResultEffect<E, X, X2, XR>
     where
         X: SemigroupEffect<X, X2, XR> {
     fn combine(a: Result<X, E>, b: Result<X2, E>) -> Result<XR, E> {
         Self::combine_results(a, b, combine)
     }
 }
-impl <'a, X, E> SemigroupInner<'a, Result<X, E>, X> for ResultEffect<E>  where X: 'a, E: 'a {
+
+impl <'a, X, E> SemigroupInner<'a, Result<X, E>, X> for ResultEffect<E, X, X, X>  where X: 'a, E: 'a {
     fn combine_inner<TO>(a: Result<X, E>, b: Result<X, E>) -> Result<X, E>
         where
             TO: 'a + Semigroup<X, X, X> {
         Self::combine_results(a, b, TO::combine)
     }
 }
-impl<X, E: Default> Monoid<Result<X, E>> for ResultEffect<E> {
+
+impl<E: Default, X, Y, Z> Monoid<Result<X, E>> for ResultEffect<E, X, Y, Z> {
     fn empty() -> Result<X, E> {
         Err(E::default())
     }
 }
-impl<X, E> Applicative<X> for ResultEffect<E> {
-    type FX = Result<X, E>;
-    fn pure(x: X) -> Self::FX {
-        Ok(x)
-    }
-}
-impl<'a, X, Y, E> Functor<'a, X, Y> for ResultEffect<E> {
+
+impl<'a, E, X, Y, Z> Functor<'a> for ResultEffect<E, X, Y, Z> {
+    type X = X;
+    type Y = Y;
     type FX = Result<X, E>;
     type FY = Result<Y, E>;
     fn fmap(f: Self::FX, func: impl 'a + Fn(X) -> Y + Send + Sync) -> Self::FY {
         f.map(func)
     }
 }
-impl<'a, X, Y, Z, E> Functor2<'a, X, Y, Z> for ResultEffect<E> {
-    type FX = Result<X, E>;
-    type FY = Result<Y, E>;
+
+impl<'a, E, X, Y, Z> Applicative<'a> for ResultEffect<E, X, Y, Z> {
+    fn pure(x: X) -> Self::FX {
+        Ok(x)
+    }
+}
+
+impl<'a, E, X, Y, Z> Functor2<'a> for ResultEffect<E, X, Y, Z> {
+    type Z = Z;
     type FZ = Result<Z, E>;
-    fn fmap2(r1: Self::FX, r2: Self::FY, func: impl 'a + Fn(X, Y) -> Z + Send + Sync) -> Self::FZ {
+    fn fmap2(r1: Self::FX,
+             r2: Self::FY,
+             func: impl 'a + Fn(Self::X, Self::Y) -> Self::Z + Send + Sync) -> Self::FZ {
         r1.and_then(|i| r2.map(|j| func(i, j)))
     }
 }
-impl<'a, X, Y, E> Monad<'a, X, Y> for ResultEffect<E> {
-    type FX = Result<X, E>;
-    type FY = Result<Y, E>;
 
-    fn flat_map(f: Self::FX, func: impl 'a + Fn(X) -> Self::FY + Send + Sync) -> Self::FY {
+impl<'a, E, X, Y, Z> Monad<'a> for ResultEffect<E, X, Y, Z> {
+    fn flat_map(f: Self::FX, func: impl 'a + Fn(Self::X) -> Self::FY + Send + Sync) -> Self::FY {
         f.and_then(func)
     }
 }
-impl<'a, X, Y: Clone, E> Foldable<'a, X, Y, Y> for ResultEffect<E> {
-    type FX = Result<X, E>;
-    fn fold(f: Self::FX, init: Y, func: impl 'a + Fn(Y, X) -> Y + Send + Sync) -> Y {
+
+impl<'a, X, Y: Clone, Z, E> Foldable<'a> for ResultEffect<E, X, Y, Z> {
+    type Z = Y;
+    fn fold(f: Self::FX,
+            init: Self::Y,
+            func: impl 'a + Fn(Self::Y, Self::X) -> Self::Y + Send + Sync) -> Self::Z {
         match f {
             Ok(i) => func(init, i),
             Err(_e) => init
         }
     }
 }
-impl<X: Clone, Y: Clone, E> Productable<X, Y> for ResultEffect<E> {
-    type FX = Result<X, E>;
-    type FY = Result<Y, E>;
+
+impl<'a, X: Clone, Y: Clone, Z, E> Productable<'a> for ResultEffect<E, X, Y, Z> {
     type FXY = Result<(X, Y), E>;
     fn product(fa: Self::FX, fb: Self::FY) -> Self::FXY {
         fmap2(fa, fb, |a, b| (a.clone(), b.clone()))

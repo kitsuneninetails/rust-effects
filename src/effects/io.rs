@@ -6,7 +6,7 @@ use std::pin::Pin;
 use futures::task::Context;
 use futures::executor::block_on;
 
-#[macro_use] use crate::*;
+use crate::*;
 use std::marker::PhantomData;
 
 pub struct IO<'a, X> {
@@ -24,6 +24,10 @@ impl<'a, X> IO<'a, X> {
             fut
         }
     }
+
+//    pub fn read_line() -> IO<'a, String> {
+//
+//    }
 
     pub fn run_sync(self) -> X {
         block_on(async {
@@ -52,14 +56,20 @@ impl<'a, X> Future for IO<'a, X> {
 }
 
 #[derive(Clone, Debug)]
-pub struct IoEffect<'a> {
-    _p: PhantomData<&'a()>
+pub struct IoEffect<'a, X=(), Y=(), Z=()> {
+    _p: PhantomData<&'a()>,
+    _a: PhantomData<X>,
+    _b: PhantomData<Y>,
+    _c: PhantomData<Z>
 }
 
-impl<'a> IoEffect<'a> {
-    pub fn apply() -> IoEffect<'a> {
+impl<'a, X, Y, Z> IoEffect<'a, X, Y, Z> {
+    pub fn apply(_: Z) -> IoEffect<'a, X, Y, Z> {
         IoEffect {
             _p: PhantomData,
+            _a: PhantomData,
+            _b: PhantomData,
+            _c: PhantomData
         }
     }
 
@@ -71,19 +81,19 @@ impl<'a> IoEffect<'a> {
             X2: 'a + Send + Sync,
             R: 'a + Send + Sync,
             Fn: 'a + FnOnce(X1, X2) -> R + Send + Sync {
-        IO::new(FutureEffect::combine_futures(a.fut, b.fut, func))
+        IO::new(FutureEffect::<X, Y, Z>::combine_futures(a.fut, b.fut, func))
     }
 }
 
-impl<'a> Effect for IoEffect<'a> {}
+impl<'a, X, Y, Z> Effect for IoEffect<'a, X, Y, Z> {}
 
-impl<'a, X: 'a + Default + Send> Monoid<IO<'a, X>> for IoEffect<'a> {
+impl<'a, X: 'a + Default + Send, Y, Z> Monoid<IO<'a, X>> for IoEffect<'a, X, Y, Z> {
     fn empty() -> IO<'a, X> {
-        IO::new(FutureEffect::empty())
+        IO::new(FutureEffect::<X, Y, Z>::empty())
     }
 }
 
-impl<'a, X1, X2, R> Semigroup<IO<'a, X1>, IO<'a, X2>, IO<'a, R>> for IoEffect<'a>
+impl<'a, X1, X2, R> Semigroup<IO<'a, X1>, IO<'a, X2>, IO<'a, R>> for IoEffect<'a, X1, X2, R>
     where
         X1: SemigroupEffect<X1, X2, R> + 'a + Send + Sync,
         X2: 'a + Send + Sync,
@@ -94,7 +104,7 @@ impl<'a, X1, X2, R> Semigroup<IO<'a, X1>, IO<'a, X2>, IO<'a, R>> for IoEffect<'a
     }
 }
 
-impl <'a, X> SemigroupInner<'a, IO<'a, X>, X> for IoEffect<'a>
+impl <'a, X, Y, Z> SemigroupInner<'a, IO<'a, X>, X> for IoEffect<'a, X, Y, Z>
     where
         X: 'a + Send + Sync {
     fn combine_inner<TO>(a: IO<'a, X>, b: IO<'a, X>) -> IO<'a, X>
@@ -104,76 +114,73 @@ impl <'a, X> SemigroupInner<'a, IO<'a, X>, X> for IoEffect<'a>
     }
 }
 
-impl<'a, X: 'a + Send + Sync> Applicative<X> for IoEffect<'a> {
-    type FX = IO<'a, X>;
-    fn pure(x: X) -> Self::FX {
-        IO::new(FutureEffect::pure(x))
-    }
-}
-
-impl<'a, X, Y> Functor<
-    'a,
-    X,
-    Y> for IoEffect<'a>
+impl<'a, X, Y, Z> Functor<'a> for IoEffect<'a, X, Y, Z>
     where
         X: 'a + Send + Sync,
         Y: 'a + Send + Sync {
-    type FX = IO<'a, X>;
-    type FY = IO<'a, Y>;
-    fn fmap(f: Self::FX, func: impl 'a + Fn(X) -> Y + Send + Sync) -> Self::FY {
-        IO::new(FutureEffect::fmap(f.fut, func))
+    type X = X;
+    type Y = Y;
+    type FX = IO<'a, Self::X>;
+    type FY = IO<'a, Self::Y>;
+    fn fmap(f: Self::FX, func: impl 'a + Fn(Self::X) -> Self::Y + Send + Sync) -> Self::FY {
+        IO::new(FutureEffect::<X, Y, Z>::fmap(f.fut, func))
     }
 }
 
-impl<'a, X, Y, Z> Functor2<'a, X, Y, Z> for IoEffect<'a>
+impl<'a, X: 'a + Send + Sync, Y: 'a + Send + Sync, Z> Applicative<'a> for IoEffect<'a, X, Y, Z> {
+    fn pure(x: X) -> Self::FX {
+        IO::new(FutureEffect::<X, Y, Z>::pure(x))
+    }
+}
+
+impl<'a, X, Y, Z> Functor2<'a> for IoEffect<'a, X, Y, Z>
     where
         X: 'a + Send + Sync,
         Y: 'a + Send + Sync,
         Z: 'a + Send + Sync {
-    type FX = IO<'a, X>;
-    type FY = IO<'a, Y>;
+    type Z = Z;
     type FZ = IO<'a, Z>;
-    fn fmap2(fa: Self::FX, fb: Self::FY, func: impl 'a + Fn(X, Y) -> Z + Send + Sync) -> Self::FZ {
+    fn fmap2(fa: Self::FX,
+             fb: Self::FY,
+             func: impl 'a + Fn(Self::X, Self::Y) -> Self::Z + Send + Sync) -> Self::FZ {
         IO::new(FutureEffect::fmap2(fa.fut, fb.fut, func))
     }
 }
 
-impl<'a, X, Y> Monad<'a, X, Y> for IoEffect<'a>
+impl<'a, X, Y, Z> Monad<'a> for IoEffect<'a, X, Y, Z>
     where
         X: 'a + Send + Sync,
         Y: 'a + Send + Sync {
-    type FX = IO<'a, X>;
-    type FY = IO<'a, Y>;
-
-    fn flat_map(f: Self::FX, func: impl 'a + Fn(X) -> Self::FY + Send + Sync) -> Self::FY {
+    fn flat_map(f: Self::FX, func: impl 'a + Fn(Self::X) -> Self::FY + Send + Sync) -> Self::FY {
         IO::new(ConcreteFuture::new(f.map(move |x| func(x)).flatten()))
     }
 }
 
-impl<'a, X, Y> Foldable<'a, X, Y, IO<'a, Y>> for IoEffect<'a>
-    where
-        X: 'a + Send,
-        Y: 'a + Send {
-    type FX = IO<'a, X>;
-    fn fold(f: Self::FX,
-            init: Y,
-            func: impl 'a + Fn(Y, X) -> Y + Send + Sync)
-            -> IO<'a, Y> {
-        IO::new(FutureEffect::fold(f.fut, init, func))
-    }
-}
-
-impl<'a, X: Clone, Y: Clone> Productable<X, Y> for IoEffect<'a>
+impl<'a, X, Y, Z> Foldable<'a> for IoEffect<'a, X, Y, Z>
     where
         X: 'a + Send + Sync,
         Y: 'a + Send + Sync {
-    type FX = IO<'a, X>;
-    type FY = IO<'a, Y>;
-    type FXY = IO<'a, (X, Y)>;
-    fn product(fa: Self::FX, fb: Self::FY) -> Self::FXY {
-        IO::new(FutureEffect::product(fa.fut, fb.fut))
+    type Z = IO<'a, Y>;
+    fn fold(f: Self::FX,
+            init: Self::Y,
+            func: impl 'a + Fn(Self::Y, Self::X) -> Self::Y + Send + Sync) -> Self::Z {
+        IO::new(FutureEffect::<X, Y, Z>::fold(f.fut, init, func))
     }
 }
+
+impl<'a, X: Clone, Y: Clone, Z> Productable<'a> for IoEffect<'a, X, Y, Z>
+    where
+        X: 'a + Send + Sync,
+        Y: 'a + Send + Sync {
+    type FXY = IO<'a, (X, Y)>;
+    fn product(fa: Self::FX, fb: Self::FY) -> Self::FXY {
+        IO::new(FutureEffect::<X, Y, Z>::product(fa.fut, fb.fut))
+    }
+}
+
+//impl<'a, X, Y, Z> SyncT<'a> for IO<'a, X, Y, Z> {
+//
+//}
 
 #[macro_export]
 macro_rules! io {

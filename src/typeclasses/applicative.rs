@@ -1,15 +1,17 @@
 use super::{Effect};
+use crate::typeclasses::functor::Functor;
+use crate::typeclasses::F;
 
-pub trait Applicative<X>: Effect {
-    type FX;
-    fn pure(x: X) -> Self::FX;
+/// An applicative is a functor
+pub trait Applicative<'a>: Effect + Functor<'a> {
+    fn pure(x: Self::X) -> Self::FX;
 }
 
-pub trait ApplicativeEffect: Sized {
+pub trait ApplicativeEffect<'a>: Sized where Self: F<<Self as ApplicativeEffect<'a>>::X> {
     type X;
-    type Fct: Applicative<Self::X, FX=Self>;
+    type Fct: Applicative<'a, X=Self::X, FX=Self>;
 }
 
-pub fn pure<I: ApplicativeEffect>(x: I::X) -> I {
+pub fn pure<'a, I: ApplicativeEffect<'a>>(x: I::X) -> I {
     I::Fct::pure(x)
 }

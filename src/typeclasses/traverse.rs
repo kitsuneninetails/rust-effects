@@ -19,7 +19,7 @@ pub trait Traverse<'a, T, E, TR, FR, X, Y>: Effect
     where T: F<X>, // The Traversable type (Vec, Option, etc.), wrapping the effect, T<E<X>>
           E: F<Y> + Functor2Effect<'a, Y, TR, TR, FX=E, FY=FR, FZ=FR>, // The effect returned from func, wrapping a concrete type Y, E<Y>
           TR: F<Y>, // The Traversable type to return, wrapping the effect's internal type, T<Y>
-          FR: F<TR> + ApplicativeEffect // The full return, the effect wrapping the traversable, F<T<X>>
+          FR: F<TR> + ApplicativeEffect<'a> // The full return, the effect wrapping the traversable, F<T<X>>
 {
     fn traverse(f: T,
                 func: impl 'a + Fn(X) -> E + Send + Sync) -> FR;
@@ -30,7 +30,7 @@ pub trait TraverseEffect<'a, T, E, TR, FR, X, Y>
         T: F<X>,
         E: F<Y>+ Functor2Effect<'a, Y, TR, TR, FX=E, FY=FR, FZ=FR>,
         TR: F<Y>,
-        FR: F<TR> + ApplicativeEffect {
+        FR: F<TR> + ApplicativeEffect<'a> {
     type Fct: Traverse<'a, T, E, TR, FR, X, Y> + Effect;
 }
 
@@ -40,6 +40,6 @@ where
     T: F<X> + TraverseEffect<'a, T, E, TR, FR, X, Y>,
     E: F<Y> + Functor2Effect<'a, Y, TR, TR, FX=E, FY=FR, FZ=FR>,
     TR: F<Y>,
-    FR: F<TR> + ApplicativeEffect {
+    FR: F<TR> + ApplicativeEffect<'a> {
     T::Fct::traverse(f, func)
 }

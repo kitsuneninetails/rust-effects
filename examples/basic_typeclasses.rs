@@ -1,13 +1,14 @@
 use rust_effects::prelude::*;
 use std::ops::Add;
+use rust_effects::{option_monad, result_monad, vec_monad};
 
-fn func_which_takes_monad_and_addables<'a, FX, X, T>(item: FX, add: X) -> FX
+fn func_which_takes_monad_and_addables<'a, FX, X, M>(M: M, item: FX, add: X) -> FX
 where
     X: 'a +  Add<Output=X> + Clone + Send + Sync,
-    FX: F<X> + MonadEffect<'a, X, X, FX=FX, FY=FX> + ApplicativeEffect<X=X, Fct=T>,
-    T: Applicative<X, FX=FX>
+    FX: F<X>,
+    M: Monad<'a, X=X, FX=FX, Y=X, FY=FX>
 {
-    flat_map(item, move |x| pure(x + add.clone()))
+    M::flat_map(item, move |x| M::pure(x + add.clone()))
 }
 
 fn main() {
@@ -28,13 +29,13 @@ fn main() {
     println!("If we combine it with a Some(5) with Mul: {:?}",
              combine_inner::<_, _, IntMulSemigroup>(res.clone(), Some(5u32)));
 
-    let op_4 = func_which_takes_monad_and_addables(Some(3), 1);
-    println!("Some(3) passed to general add1 func -> {:?}", op_4);
-
-    let r_4: Result<i32, ()> = func_which_takes_monad_and_addables(Ok(3), 1);
+    let r_4: Result<i32, ()> = func_which_takes_monad_and_addables(result_monad!(), Ok(3), 1);
     println!("Ok(3) passed to general add1 func -> {:?}", r_4);
 
-    let v_4 = func_which_takes_monad_and_addables(vec![2, 3, 4], 1);
+    let op_4: Option<i32> = func_which_takes_monad_and_addables(option_monad!(), Some(3), 1);
+    println!("Some(3) passed to general add1 func -> {:?}", op_4);
+
+    let v_4 = func_which_takes_monad_and_addables(vec_monad!(), vec![2, 3, 4], 1);
     println!("[2,3,4] passed to general add1 func -> {:?}", v_4);
 
 

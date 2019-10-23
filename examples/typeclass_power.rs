@@ -3,9 +3,7 @@ extern crate serde;
 extern  crate serde_json;
 
 use rust_effects::prelude::*;
-use rust_effects::futures::prelude::*;
-use std::ops::Add;
-use serde_json::{to_string, from_str};
+use rust_effects::{future_monad, result_monad};
 use rust_effects::futures::executor::block_on;
 
 #[derive(Clone, Debug, Serialize, PartialEq, Deserialize)]
@@ -19,15 +17,15 @@ fn db_call() -> u32 {
     10
 }
 
-fn main_caller<'a, FX, FR, A>(a: A) -> FR
+fn main_caller<'a, FX, FR, F1, F2>(ev: F1, ev2: F2) -> FR
     where
-        A: Applicative<u32, FX=FX> + Monad<'a, u32, u32, FX=FX, FY=FX> + Functor<'a, u32, TestData, FX=FX, FY=FR>,
+        F1: Monad<'a, X=u32, FX=FX, Y=u32, FY=FX>,
+        F2: Functor<'a, X=u32, FX=FX, Y=TestData, FY=FR>,
         FX: F<u32>,
         FR: F<TestData> {
-    let f: FX = A::pure(IntAddMonoid::empty());
-    let f = A::flat_map(f, |_| A::pure(db_call()));
-
-    A::fmap(f, |data| TestData { data })
+    let f: FX = F1::pure(IntAddMonoid::empty());
+    let f = F1::flat_map(f, |_| F1::pure(db_call()));
+    F2::fmap(f, |data| TestData { data })
 }
 
 fn main() {
@@ -37,13 +35,13 @@ fn main() {
 
     block_on(async {
         println!("Calling an effectful as a future, and then awaiting:");
-        let f: ConcreteFuture<TestData> = main_caller(FutureEffect::apply());
+        let f: ConcreteFuture<TestData> = main_caller(future_monad!(), FutureEffect::apply(()));
         println!("Waiting on future now");
         println!("Output = {:?}", f.await);
     });
 
     println!("Calling an effectful as a result immediately:");
-    let f: Result<TestData, String> = main_caller(ResultEffect::apply());
+    let f: Result<TestData, String> = main_caller(result_monad!(), ResultEffect::apply(()));
     println!("Output = {:?}", f.unwrap());
 
 

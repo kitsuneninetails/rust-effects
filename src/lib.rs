@@ -1,6 +1,7 @@
 #![feature(associated_type_bounds)]
 #![feature(associated_type_defaults)]
 #![feature(type_alias_impl_trait)]
+#![feature(default_type_parameter_fallback)]
 
 pub mod effects;
 pub mod effects_typeclasses;

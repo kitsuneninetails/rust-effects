@@ -3,7 +3,6 @@ extern crate serde;
 extern  crate serde_json;
 
 use rust_effects::prelude::*;
-use rust_effects::futures::prelude::*;
 use serde_json::{to_string, from_str};
 use rust_effects::futures::executor::block_on;
 
