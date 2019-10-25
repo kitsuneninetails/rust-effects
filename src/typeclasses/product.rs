@@ -13,8 +13,7 @@ pub trait ProductableEffect<'a, X, Y> {
     type Fct: Productable<'a, X=X, Y=Y, FX=Self::FX, FY=Self::FY, FXY=Self::FXY> + Effect;
 }
 
-pub fn product<'a, FX, FY, FXY, X, Y>(fa: FX,
-                                  fb: FY) -> FXY
+pub fn product<'a, FX, FY, FXY, X, Y>(fa: FX, fb: FY) -> FXY
     where FX: F<X> + ProductableEffect<'a, X, Y, FX=FX, FY=FY, FXY=FXY>,
           FY: F<Y>,
           FXY: F<(X, Y)>{

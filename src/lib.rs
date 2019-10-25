@@ -29,6 +29,10 @@ pub mod prelude {
         io::*
     };
 
+    pub use crate::effects_typeclasses::{
+        synct::*
+    };
+
     pub use crate::future::*;
     pub use crate::option::*;
     pub use crate::result::*;

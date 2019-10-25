@@ -8,14 +8,15 @@ use futures::executor::block_on;
 
 use crate::*;
 use std::marker::PhantomData;
+use std::{fs, io};
 
 pub struct IO<'a, X> {
     fut: ConcreteFuture<'a, X>,
 }
 impl<'a, X> IO<'a, X> {
-    pub fn apply(func: impl 'a + FnOnce() -> X + Send + Sync) -> IO<'a, X> {
+    pub fn apply(func: impl 'a + Fn() -> X + Send + Sync) -> IO<'a, X> {
         IO {
-            fut: fut(lazy(|_| func()))
+            fut: fut(lazy(move |_| func()))
         }
     }
 
@@ -25,9 +26,23 @@ impl<'a, X> IO<'a, X> {
         }
     }
 
-//    pub fn read_line() -> IO<'a, String> {
-//
-//    }
+    pub fn get_file(path: String) -> IO<'a, io::Result<String>> {
+        delay(io_monad!(), move || fs::read_to_string(path.clone()))
+    }
+
+    pub fn get_line() -> IO<'a, io::Result<String>> {
+        delay(io_monad!(), move || {
+            let mut output = String::new();
+            io::stdin().read_line(&mut output)
+                .map(|_| output)
+        })
+    }
+
+    pub fn put_to_file(path: String, contents: String) -> IO<'a, io::Result<()>> {
+        delay(io_monad!(), move || {
+            fs::write(path.clone(), contents.clone())
+        })
+    }
 
     pub fn run_sync(self) -> X {
         block_on(async {
@@ -85,9 +100,14 @@ impl<'a, X, Y, Z> IoEffect<'a, X, Y, Z> {
     }
 }
 
+#[macro_export]
+macro_rules! io_monad {
+    () => (IoEffect::apply(()))
+}
+
 impl<'a, X, Y, Z> Effect for IoEffect<'a, X, Y, Z> {}
 
-impl<'a, X: 'a + Default + Send, Y, Z> Monoid<IO<'a, X>> for IoEffect<'a, X, Y, Z> {
+impl<'a, X: 'a + Default + Sync + Send, Y, Z> Monoid<IO<'a, X>> for IoEffect<'a, X, Y, Z> {
     fn empty() -> IO<'a, X> {
         IO::new(FutureEffect::<X, Y, Z>::empty())
     }
@@ -178,9 +198,15 @@ impl<'a, X: Clone, Y: Clone, Z> Productable<'a> for IoEffect<'a, X, Y, Z>
     }
 }
 
-//impl<'a, X, Y, Z> SyncT<'a> for IO<'a, X, Y, Z> {
-//
-//}
+
+impl<'a, X, Z> SyncT<'a> for IoEffect<'a, X, X, Z>
+    where
+        X: 'a + Send + Sync {
+    fn suspend(thunk: impl Fn() -> Self::FX + 'a + Send + Sync) -> Self::FX {
+        let x = IO::apply(|| ());
+        IoEffect::<(), X, ()>::flat_map(x, move |_| thunk())
+    }
+}
 
 #[macro_export]
 macro_rules! io {
@@ -197,6 +223,25 @@ mod tests {
             println!("World");
             4
         });
+        assert_eq!(4, t.run_sync());
+    }
+
+    #[test]
+    fn test_sync() {
+        let func = || {
+            println!("Hello");
+            println!("World");
+            4
+        };
+        let t: IO<i32> = delay(io_monad!(), func);
+        assert_eq!(4, t.run_sync());
+
+        let func = || {
+            println!("Hello");
+            println!("World");
+            pure(4)
+        };
+        let t: IO<i32> = suspend(io_monad!(), func);
         assert_eq!(4, t.run_sync());
     }
 }

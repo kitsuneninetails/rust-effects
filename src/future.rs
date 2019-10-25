@@ -82,7 +82,7 @@ macro_rules! future_monad {
 
 impl<'a, X, Y, Z> Effect for FutureEffect<'a, X, Y, Z> {}
 
-impl<'a, X: 'a + Default + Send, Y, Z> Monoid<ConcreteFuture<'a, X>> for FutureEffect<'a, X, Y, Z> {
+impl<'a, X: 'a + Default + Sync + Send, Y, Z> Monoid<ConcreteFuture<'a, X>> for FutureEffect<'a, X, Y, Z> {
     fn empty() -> ConcreteFuture<'a, X> {
         ConcreteFuture::new(ready(X::default()))
     }
