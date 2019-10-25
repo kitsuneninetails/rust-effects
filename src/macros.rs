@@ -268,3 +268,15 @@ macro_rules! productable_effect {
         }
     );
 }
+
+#[macro_export]
+macro_rules! synct_effect {
+    (S, $m:ident, $eff:ident) => (
+        impl<'a, X> SyncTEffect<'a> for $m<'a, X>
+            where
+                X: 'a + Send + Sync {
+            type X = X;
+            type Fct = $eff<'a, X, X, ()>;
+        }
+    );
+}

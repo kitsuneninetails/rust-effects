@@ -22,10 +22,10 @@ pub fn flat_map<'a, FX, FY, X, Y>(f: FX, func: impl 'a + Fn(X) -> FY + Send + Sy
     FX::Fct::flat_map(f, func)
 }
 
-/// A typeclass which can provide a folding feature, which "rolls" up a type into a new type.
-/// This is accomplished via an initial value which is then iterated through the type, accumulating
-/// a result value via the provided function (which takes the accumulated value and the item in
-/// the iteration).  At the end, this accumulated value is returned.
+/// Foldable is a typeclass which can provide a folding feature, which "rolls" up a type into a
+/// new type.  This is accomplished via an initial value which is then iterated through the type,
+/// accumulating a result value via the provided function (which takes the accumulated value and
+/// the item in the iteration).  At the end, this accumulated value is returned.
 ///
 /// Typically, the result of a fold is the same type as the initial value, due to init and function
 /// both operating ont his value as the fold is accumulated.  However, a type `Z` is provided here

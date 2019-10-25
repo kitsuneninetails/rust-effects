@@ -3,18 +3,19 @@ use super::{F,
             applicative::*,
             functor::*};
 
-// Basically take a Traversable typeclass T, wrapping a set of concrete types X and a function
-// which maps the X into a compatible type constructor E (usually an effect, like Future,
-// IO, Result, etc.) wrapping a type Y.
-//   _____T_____
-// /            \
-// (* -> *) -> *
-//     E       X
-//
-// Traverse returns a flipped structure, with the returned effect E holding the Traversable T,
-// which itself wraps teh returned concrete type Y.
-//
-// e.g. T<X> => traverse (gets a T<E<Y>> as an interim value) => E<T<Y>>
+/// Basically take a Traversable type constructor T, wrapping a set of concrete types X, and a
+/// function which maps the X into a compatible type constructor E (usually an effect, like Future,
+/// IO, Result, etc.) which wraps a concrete type Y.
+///   _____T_____
+/// /            \
+/// (* -> *) -> *
+///     E       X
+///
+/// Traverse calls the function on each item in the traversable, to generate an interim structure
+/// with the Traversable holding the results of the computation.  Then, Traverse will flip the
+/// structure, with a single effect E wrapping the Traversable of concrete Y values.
+///
+/// e.g. T<X> => traverse (gets a T<E<Y>> as an interim value) => E<T<Y>>
 pub trait Traverse<'a, T, E, TR, FR, X, Y>: Effect
     where T: F<X>, // The Traversable type (Vec, Option, etc.), wrapping the effect, T<E<X>>
           E: F<Y> + Functor2Effect<'a, Y, TR, TR, FX=E, FY=FR, FZ=FR>, // The effect returned from func, wrapping a concrete type Y, E<Y>

@@ -4,7 +4,6 @@
 #![feature(default_type_parameter_fallback)]
 
 pub mod effects;
-pub mod effects_typeclasses;
 pub mod future;
 pub mod option;
 pub mod result;
@@ -23,16 +22,12 @@ pub mod prelude {
         product::*,
         semigroup::*,
         traverse::*,
+        synct::*,
         F, Effect
     };
     pub use crate::effects::{
         io::*
     };
-
-    pub use crate::effects_typeclasses::{
-        synct::*
-    };
-
     pub use crate::future::*;
     pub use crate::option::*;
     pub use crate::result::*;

@@ -26,23 +26,23 @@ impl<'a, X> IO<'a, X> {
         }
     }
 
-    pub fn get_file(path: String) -> IO<'a, io::Result<String>> {
-        delay(io_monad!(), move || fs::read_to_string(path.clone()))
-    }
-
-    pub fn get_line() -> IO<'a, io::Result<String>> {
-        delay(io_monad!(), move || {
-            let mut output = String::new();
-            io::stdin().read_line(&mut output)
-                .map(|_| output)
-        })
-    }
-
-    pub fn put_to_file(path: String, contents: String) -> IO<'a, io::Result<()>> {
-        delay(io_monad!(), move || {
-            fs::write(path.clone(), contents.clone())
-        })
-    }
+//    pub fn get_file(path: String) -> IO<'a, io::Result<String>> {
+//        delay(move || fs::read_to_string(path.clone()))
+//    }
+//
+//    pub fn get_line() -> IO<'a, io::Result<String>> {
+//        delay(move || {
+//            let mut output = String::new();
+//            io::stdin().read_line(&mut output)
+//                .map(|_| output)
+//        })
+//    }
+//
+//    pub fn put_to_file(path: String, contents: String) -> IO<'a, io::Result<()>> {
+//        delay(move || {
+//            fs::write(path.clone(), contents.clone())
+//        })
+//    }
 
     pub fn run_sync(self) -> X {
         block_on(async {
@@ -61,6 +61,7 @@ functor2_effect! { S, IO, IoEffect }
 monad_effect! { S, IO, IoEffect }
 foldable_effect! { S, IO, IoEffect }
 productable_effect! { S, IO, IoEffect }
+synct_effect! { S, IO, IoEffect }
 
 impl<'a, X> Future for IO<'a, X> {
     type Output = X;
@@ -216,6 +217,7 @@ macro_rules! io {
 #[cfg(test)]
 mod tests {
     use super::*;
+
     #[test]
     fn test_io() {
         let t = io! ({
@@ -233,7 +235,7 @@ mod tests {
             println!("World");
             4
         };
-        let t: IO<i32> = delay(io_monad!(), func);
+        let t: IO<i32> = delay(func);
         assert_eq!(4, t.run_sync());
 
         let func = || {
@@ -241,7 +243,7 @@ mod tests {
             println!("World");
             pure(4)
         };
-        let t: IO<i32> = suspend(io_monad!(), func);
+        let t: IO<i32> = suspend(func);
         assert_eq!(4, t.run_sync());
     }
 }

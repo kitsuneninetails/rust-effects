@@ -1,6 +1,10 @@
 use super::{F, Effect};
 use crate::typeclasses::monad::Monad;
 
+/// `Productable` is an extended typeclass that just specifies the ability to combine two
+/// type constructors and map the internal type to a new, combined type, represented by a 2-tuple
+/// of the original values.  This is usually equivalent to a `fmap2` from `Functor2`, using a
+/// tuple output as the combining function.
 pub trait Productable<'a>: Effect + Monad<'a> {
     type FXY: F<(Self::X, Self::Y)>;
     fn product(fa: Self::FX, fb: Self::FY) -> Self::FXY;

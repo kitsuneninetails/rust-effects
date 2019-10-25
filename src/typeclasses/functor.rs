@@ -27,6 +27,8 @@ pub fn fmap<'a, FX: F<X> + FunctorEffect<'a, X, Y, FX=FX, FY=FY>, FY: F<Y>, X, Y
     FX::Fct::fmap(f, func)
 }
 
+/// Functor2 is similar to a normal `Functor`, except it can take two contexts and combine them
+/// with a function.
 pub trait Functor2<'a>: Effect + Functor<'a> {
     type Z;
     type FZ: F<Self::Z>;
