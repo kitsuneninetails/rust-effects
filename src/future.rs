@@ -1,3 +1,15 @@
+/// Future Typeclass Behaviors
+///
+/// Semigroup -
+/// Monoid -
+/// Applicative -
+/// Functor -
+/// Functor2 -
+/// Monad -
+/// Foldable -
+/// Productable -
+/// Traverse -
+///
 use super::prelude::*;
 use futures::prelude::*;
 use futures::future::{ready, BoxFuture, FutureExt};

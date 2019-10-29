@@ -1,3 +1,16 @@
+/// The IO Monad
+///
+/// IO Behaviors:
+///
+/// Semigroup -
+/// Monoid -
+/// Applicative -
+/// Functor -
+/// Functor2 -
+/// Monad -
+/// Foldable -
+/// Productable -
+/// Traverse -
 use crate::prelude::*;
 use crate::futures::future::lazy;
 use crate::futures::FutureExt;
