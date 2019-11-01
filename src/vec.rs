@@ -1,14 +1,25 @@
 /// Vector Typeclass Behaviors
 ///
-/// Semigroup -
-/// Monoid -
-/// Applicative -
-/// Functor -
-/// Functor2 -
-/// Monad -
-/// Foldable -
-/// Productable -
+/// Semigroup
+///     `combine(vec![A, B, ...], vec![X, Y, ...]) => vec![A, B, ..., X, Y, ...]`
+/// Monoid
+///     `empty() => vec![]`
+/// Applicative
+///     `pure(X) => vec![X]`
+/// Functor
+///     `fmap(vec![X, Y, ..], fn T1 -> T2) => vec![fn(X), fn(Y), ...]`
+/// Functor2
+///     `fmap(vec![A, B, ...], vec![X, Y, ...], fn T1 T2 -> T3) => vec![fn(A, X), fn(A, Y), ..., fn(B, X), ...]`
+/// Monad
+///     `flat_map(vec![X, Y, ...], fn T1 -> Vec T2 => vec![fn(X)[0], fn(X)[1], ..., fn(Y)[0], ...]`
+///     Note: The brackets [] denote that the returned vectors are flattened in place.
+/// Foldable
+///     `fold(vec![X, Y, ...], init, fn TI T1 -> TI) => fn...(fn(fn(init, X), Y), ...)`
+/// Productable
+///     `product(vec![A, B, ...], vec![X, Y, ...]) => vec![(A, X), (A, Y), ... (B, X), ...]`
 /// Traverse -
+///     `traverse(vec![X, Y, ...], fn T1 -> F<T2>) => F<vec![*fn(X), *fn(Y), ...]>`
+///     Note: The `*` means the inner item from the F<_> returned from the function call.
 
 use super::prelude::*;
 use crate::*;

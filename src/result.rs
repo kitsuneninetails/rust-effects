@@ -1,14 +1,36 @@
 /// Result Typeclass Behaviors
 ///
-/// Semigroup -
-/// Monoid -
-/// Applicative -
-/// Functor -
-/// Functor2 -
-/// Monad -
-/// Foldable -
+/// Semigroup
+///     `combine(Ok(X), Ok(Y)) => Ok(combine(X, Y))`
+///     `combine(Ok(X), Err(E2)) => Err(E2)`
+///     `combine(Err(E1), Ok(Y)) => Err(E1)`
+///     `combine(Err(E1), Err(E2)) => Err(E1)`
+/// Monoid
+///     `empty() => Err(E)`
+/// Applicative
+///     `pure(X) => Ok(X)`
+/// Functor
+///     `fmap(Ok(X), fn T1 -> T2) => Ok(fn(X))`
+///     `fmap(Err(E), fn T1 -> T2) => Err(E)`
+/// Functor2
+///     `fmap2(Ok(X), Ok(Y), fn T1 T2 -> T3) => Ok(fn(X, Y))`
+///     `fmap2(Ok(X), Err(E2), fn T1 T2 -> T3) => Err(E2)`
+///     `fmap2(Err(E1), Ok(Y), fn T1 T2 -> T3) => Err(E1)`
+///     `fmap2(Err(E1), Err(E2), fn T1 T2 -> T3) => Err(E1)`
+/// Monad
+///     `flat_map(Ok(X), fn T1 -> Option<T2>) => Ok(Y)` if fn(X) returns Ok(Y)
+///     `flat_map(Ok(X), fn T1 -> Option<T2>) => Err(E2)` if fn(X) returns Err(E2)
+///     `flat_map(Err(E), fn T1 -> Option<T2>) => Err(E)`
+/// Foldable
+///     `fold(Ok(X), init, fn TI T1 -> TI) => fn(init, X)`
+///     `fold(Err(E), init, fn TI T1 -> TI) => init`
 /// Productable -
-/// Traverse -
+///     `product(Ok(X), Ok(Y)) => Ok((X, Y))`
+///     `product(Ok(X), Err(E2)) => Err(2E)`
+///     `product(Err(E1), Ok(Y)) => Err(E1)`
+///     `product(Err(E1), Err(E2)) => Err(E1)`
+/// Traverse
+///     `Not implemented`
 
 use super::prelude::*;
 use std::marker::PhantomData;

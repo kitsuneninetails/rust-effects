@@ -1,15 +1,34 @@
 /// Future Typeclass Behaviors
 ///
-/// Semigroup -
-/// Monoid -
-/// Applicative -
-/// Functor -
-/// Functor2 -
-/// Monad -
-/// Foldable -
+/// Note: Any type wrapped by Future must implement `Send` and `Sync` in order to be
+/// dispatched to the execution context.
+
+/// Semigroup
+///     `combine(Future(X), Future(Y)) => Future(combine(X, Y))`
+/// Monoid
+///     `empty() => Future(T1::default())` // uses `ready` future
+///     Note: This returns a valid future of the default value of the future's type.
+/// Applicative
+///     `pure(X) => Future(X)` // uses `ready` future
+///     Note: This is greedy and will perform any function given to come up with a value before
+///     creating the future!
+/// Functor
+///     `fmap(Future(X), fn T1 -> T2) => Future(fn(X))`
+///     Note: This is lazy and will perform the function when the future.`await` is called
+/// Functor2
+///     `fmap2(Future(X), Future(Y), fn T1 T2 -> T3) => Future(fn(X, Y))`
+///     Note: This is lazy and will perform the function when the future.`await` is called
+/// Monad
+///     `flat_map(Future(X), fn T1 -> Future<T2>) => Future(*fn(X))` if fn(X) returns Some(Y)
+///     Note: This is lazy and will perform the function when the future.`await` is called.
+///     Also, this can return a different future type (Ready vs. Lazy vs. AndThen vs. Map, etc.)
+/// Foldable
+///     `fold(Future(X), init, fn TI T1 -> TI) => Future(fn(init, X))`
+///     Note: To preserve the 'future-ness' of the result, it is essentially the same as a `fmap.`
 /// Productable -
-/// Traverse -
-///
+///     `product(Future(X), Future(Y)) => Future((X, Y))`
+/// Traverse
+///     `Not implemented`
 use super::prelude::*;
 use futures::prelude::*;
 use futures::future::{ready, BoxFuture, FutureExt};

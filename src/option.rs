@@ -1,15 +1,37 @@
 /// Option Typeclass Behaviors
 ///
-/// Semigroup -
-/// Monoid -
-/// Applicative -
-/// Functor -
-/// Functor2 -
-/// Monad -
-/// Foldable -
+/// Semigroup
+///     `combine(Some(X), Some(Y)) => Some(combine(X, Y))`
+///     `combine(Some(X), None) => None`
+///     `combine(None, Some(Y)) => None`
+///     `combine(None, None) => None`
+/// Monoid
+///     `empty() => None`
+/// Applicative
+///     `pure(X) => Some(X)`
+/// Functor
+///     `fmap(Some(X), fn T1 -> T2) => Some(fn(X))`
+///     `fmap(None, fn T1 -> T2) => None`
+/// Functor2
+///     `fmap2(Some(X), Some(Y), fn T1 T2 -> T3) => Some(fn(X, Y))`
+///     `fmap2(Some(X), None, fn T1 T2 -> T3) => None`
+///     `fmap2(None, Some(Y), fn T1 T2 -> T3) => None`
+///     `fmap2(None, None, fn T1 T2 -> T3) => None`
+/// Monad
+///     `flat_map(Some(X), fn T1 -> Option<T2>) => Some(Y)` if fn(X) returns Some(Y)
+///     `flat_map(Some(X), fn T1 -> Option<T2>) => None` if fn(X) returns None
+///     `flat_map(None, fn T1 -> Option<T2>) => None`
+/// Foldable
+///     `fold(Some(X), init, fn TI T1 -> TI) => fn(init, X)`
+///     `fold(None, init, fn TI T1 -> TI) => init`
 /// Productable -
-/// Traverse -
-///
+///     `product(Some(X), Some(Y)) => Some((X, Y))`
+///     `product(Some(X), None) => None`
+///     `product(None, Some(Y)) => None`
+///     `product(None, None) => None`
+/// Traverse
+///     `Not implemented`
+
 use super::prelude::*;
 
 use crate::*;

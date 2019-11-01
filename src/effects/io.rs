@@ -1,16 +1,42 @@
 /// The IO Monad
 ///
+/// The IO Monad in Rust encapsulates a future, and is very similar to a future, except that it
+/// implements `SyncT`, which allows an IO to be created with a function which will have delayed
+/// execution (via a `lazy` future).  Any type wrapped by an IO must implement `Send` and `Sync`
+/// in order to be dispatched to the execution context for the future.
+///
 /// IO Behaviors:
 ///
-/// Semigroup -
-/// Monoid -
-/// Applicative -
-/// Functor -
-/// Functor2 -
-/// Monad -
-/// Foldable -
+/// Semigroup
+///     `combine(IO(X), IO(Y)) => IO(combine(X, Y))`
+/// Monoid
+///     `empty() => IO(T1::default())` // uses `ready` Future
+///     Note: This returns a valid IO of the default value of the IO's type.
+/// Applicative
+///     `pure(X) => IO(X)` // uses `ready` Future
+///     Note: This is greedy and will perform any function given to come up with a value before
+///     creating the IO!
+/// Functor
+///     `fmap(IO(X), fn T1 -> T2) => IO(fn(X))`
+///     Note: This is lazy and will perform the function when the IO.`await` is called
+/// Functor2
+///     `fmap2(IO(X), IO(Y), fn T1 T2 -> T3) => IO(fn(X, Y))`
+///     Note: This is lazy and will perform the function when the IO.`await` is called
+/// Monad
+///     `flat_map(IO(X), fn T1 -> IO<T2>) => IO(*fn(X))` if fn(X) returns Some(Y)
+///     Note: This is lazy and will perform the function when the IO.`await` is called.
+///     Also, this can return a different IO type (Ready vs. Lazy vs. AndThen vs. Map, etc.)
+/// Foldable
+///     `fold(IO(X), init, fn TI T1 -> TI) => IO(fn(init, X))`
+///     Note: To preserve the 'IO-ness' of the result, it is essentially the same as a `fmap.`
 /// Productable -
-/// Traverse -
+///     `product(IO(X), IO(Y)) => IO((X, Y))`
+/// Traverse
+///     `Not implemented`
+/// SyncT
+///     `suspend(fn () -> T1) => IO(fn())`
+///     Note: This is lazy and will perform the function when the IO.`await` is called.
+
 use crate::prelude::*;
 use crate::futures::future::lazy;
 use crate::futures::FutureExt;

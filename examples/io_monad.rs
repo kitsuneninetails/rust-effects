@@ -93,6 +93,9 @@ fn main() {
     let m2: IO<Result<String, String>> = open_and_read_inferred(m2);
     let m2: IO<()> = printout_inferred(m2);
 
+//    let m3: IOResult<String> = IO::get_line();
+//    let m3: IOResult<String> = flat_map(m3, IO::get_file(path));
+
     println!("Now we have set up the IO, proceeding with the example...");
     m.run_sync();
     println!("Now example with inferred functions...");
