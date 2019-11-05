@@ -32,31 +32,102 @@ list of bytes, in Rust's case, or even others), and so on.  Types can also take 
 values.  For instance, a `List` takes another type to make a concrete type (which will then describe which 
 values are acceptable).
 
-A "kind" describes the meta-type system and how the types interact with each other.  Kinds are stated using "\*" 
+A "kind" describes the meta-type system and how the types interact with each other.  Kinds are stated using `*` 
 syntax.  A type which can take a value to become "concrete" (i.e. instantiable as a specific, known member of
-the set of possible valus in the type), is labeled as "\*".  A List of Integers is still "\*" because it 
+the set of possible values in the type), is labeled as `*`.  A *List* of *Integers* is still `*` because it 
 needs no further information to be ready to take a value.
+
+For example:
+```text
+    +------------------------+                                    ++===========++
+    | Integer                |                                    || Integer   ||
+    |    ..., -1, 0, 1, ...? |  => Give a concrete value "2"  =>  ||     2     || 
+    +------------------------+                                    ++===========++
+      Kind = *
+```
 
 Kinds which take a type to generate another type are known as "type constructors."  There are many common
 type constructors in most modern languages.  Lists, vectors, maps, options, results (Either in Haskell and 
-Scala), are all type constructors.  These are specified as "\* -> \*".  This means that this type constructor 
-takes one type to generate a type ready to take a value.  A List is "\* -> \*", if we give it "Integer" (itself
-a "\*"), we get List[Integer], which has a kind of "\*".  If a type takes more than one type to become concrete,
-that is represented with "\* -> \* -> \*" (and so on).  A Rust `Result` has a kind of "\* -> \* -> \*".  It takes
-one type (u32) to make a Result<u32, E>, which has a kind of "\* -> \*".  It takes another type (String) to make
-a concrete Result<u32, String> with a kind "\*" and ready to take Ok(2), which is a concrete value.  Chaining
-type together still doesn't affect this syntax.  An Option<List<X>> is still "\* -> \*", because it still
-needs a concrete type to make another concrete type (giving it a `u32` makes a concrete `Option<List<u32>>`).
-In the end, Option still just needs one concrete type (represented by "\*", such as `List<u32>) to make
-it concrete.
+Scala), are all type constructors.  These are specified as `* -> *`.  This means that this type constructor 
+takes one type to generate a type ready to take a value.  A Scala *List* is `* -> *`, if we give it *Integer* (itself
+a `*`), we get *List[Integer]*, which has a kind of `*`.  If a type takes more than one type to become concrete,
+that is represented with `* -> * -> *` (and so on).  
+
+A Rust `Result` has a kind of `* -> * -> *`.  It takes one type (*u32*) to make a *Result<u32, E>*, which has a 
+kind of `* -> *`.  It takes another type (String) to make a concrete *Result<u32, String>* with a kind `*` and ready 
+to take *Ok(2)*, which is a concrete value.  Chaining type together still doesn't affect this syntax.  An 
+*Option<List<X>>* is still `* -> *`, because it still needs a concrete type to make another concrete type (giving 
+it a *u32* makes a concrete *Option<List<u32>>*). In the end, Option still just needs one concrete type (represented 
+by `*`, such as *List<u32>*) to make it concrete.
+
+For example:
+```text
+    +---------------------+                               +---------------------+
+    | Option              |                               | Option              |
+    |         +--------+  |  => Specify Option[Int] =>    |         +--------+  | 
+    | Some?   | Type T |  |              (kind = *)       | Some?   | Int  ? |  |
+    | None?   +--------+  |                               | None?   +--------+  |
+    +---------------------+                               +---------------------+
+      Kind = * -> *                                           Kind = *     |
+                                                                           |
+                                             Can now give a concrete value | "Some(2)"
+                                                                           V
+                                                          ++=====================++
+                                                          || Option = Some       ||
+                                                          ||        ++========++ ||
+                                                          ||        || Int(2) || ||
+                                                          ||        ++========++ ||
+                                                          ++=====================++
+```
 
 The next level of abstraction up takes us to a type which takes a type constructor to form a type constructor
 (much like a type constructor takes a concrete type to form another concrete type).  These are called
 "higher-kinded types" or "higher-order type operators", formally.  Rust does not implement higher-kinded types,
-however Scala can define them with the [_] generic syntax.  Defining a Foo[F[_]] is to state that this type 
+however Scala can define them with the [\_] generic syntax.  Defining a Foo[F[\_]] is to state that this type 
 "Foo" must take a type constructor (which itself takes a disregarded concrete type), and that the exact type
 constructor used isn't too important as long as it can fill the shape required (i.e. trait bounds, if any).
 Trying to instantiate `Foo[Int]` plum won't work, because `Int` isn't a type constructor.
+
+
+For example:
+```text
+    +----------------------------+                        +----------------------------+
+    | Foo                        |                        | Foo                        |
+    |    +--------------------+  |                        |    +--------------------+  |
+    |    | Type Constructor   |  |                        |    | Option             |  | 
+    |    |    ?               |  | => Supply Option[_] => |    |                    |  |
+    |    |        +--------+  |  |        (kind = * -> *) |    |  Some? +--------+  |  |
+    |    |        | Type T |  |  |                        |    |  None? | Type T |  |  |  
+    |    |        +--------+  |  |                        |    |        +--------+  |  |         
+    |    +--------------------+  |                        |    +--------------------+  | 
+    +----------------------------+                        +----------------------------+ 
+      Kind = (* -> *) -> *                                    Kind = * -> *     |
+                                                                                |
+                                         Supply Option[Int] for the type        |
+                                                 (kind = *)                     V
+                                                             +----------------------------+
+                                                             | Foo                        |
+                                                             |   +---------------------+  |
+                                                             |   | Option              |  |
+                                                   Kind = *  |   |         +--------+  |  |
+                                                             |   | Some?   | Int  ? |  |  |
+                                                             |   | None?   +--------+  |  |
+                                                             |   +---------------------+  |
+                                                             +----------------------------+
+                                                                           |
+                                             Can now give a concrete value | "Some(2)"
+                                                                           V
+                                                       ++==============================++
+                                                       || Foo                          ||
+                                                       ||   ++=====================++  ||
+                                                       ||   || Option = Some       ||  ||
+                                                       ||   ||        ++========++ ||  ||
+                                                       ||   ||        || Int(2) || ||  ||
+                                                       ||   ||        ++========++ ||  ||
+                                                       ||   ++=====================++  ||
+                                                       ++==============================++
+```
+
 
 This brings us to type classes.  Typeclasses in their basic sense are the same as traits in Scala or Rust.
 They merely define a set of behaviors for a type that implements them.  In Rust, using traits is the only way
@@ -67,12 +138,28 @@ must take a type constructor for its type parameter at a compiler level.  This m
 implementation level.  For `Functor`, for example, a type constructor is needed because the whole idea of a 
 `Functor` is to manipulate and transform the type inside a context (i.e. the concrete type a type constructor
 is declared with) in a general way.  So it makes no sense for an Integer to also be a Functor, because it has no
-internal type to be mapping to a different type.
+internal type to map to a different type (the shapes don't fit in the diagram above).
 
 In the `rust-effects` crate, the `typeclasses` module represents higher-kinded typeclasses used in functional
 programming.  They are governed through implementation of a special trait: `F<X>`.  By defining this trait
 on a type constructor (where `X` is the concrete type parameter), we can enforce the idea that only types
-with this trait implemented can be used in higher-order type operators, like `Functor` and `Monad`.
+with this trait implemented can be used in higher-order type operators, like `Functor` and `Monad`.  This is a 
+method to get around the limitations and still enforce the laws, but only as implemented by the library developer 
+(i.e. the laws aren't implicitly enforced by the compiler).
+
+As an aside, it's probably obvious that some types with a kind of `* -> * -> * ...` don't quite fit the mold, 
+because most of the typeclasses defined for functional programming take a type constructor with a kind of `* -> *`.
+What to do with something like *Result<O, E>*, which takes _two_ types?  The answer is simple, and related to the 
+"kind" system.  To get from a type constructor *TC1* with a kind of `* -> * -> *` to a type constructor *TC1'* 
+with a kind of `* -> *`, all we have to do is provide a single concrete type to *TC1*.
+
+For *Result<O, E>* that means providing one of the types, usually by fixing the error type *E*.  So, a 
+*Result<O, String>* fits the shape, as does a *Result<O, u32>* or *Result<O, ()>*.  A *Result<String, E>* also
+fits the shape, but in general most of these mathematical typeclasses are "positive-biased", meaning they lean 
+towards `Some(X)` and `Ok(X)` values when it comes to operations (for example, mapping usually works by operating on
+the positive value and leaves an error or missing value alone, as int he case of *Result* and *Option*; Scala is
+the same when it comes to *Either*).  For this reason, usually the *Result*'s error type is fixed in place, and 
+the operations performed on the `Ok()` value.    
     
 ## Higher-Kinded Typeclases in Rust-Effects
 
@@ -99,23 +186,24 @@ are both `ConcreteFuture<impl Future>`.  To this end, in order to allow for a co
 into a `String`), the types are relaxed and the implementor must take care to ensure that the types are 
 actually abstractly (if not statically) equivalent.
 
-Semigroup can, and is, defined to allow combination of concrete types, such as `String` and all 
-integral/floating-point types.  These concrete types do not implement `Semigroup`.  Rather, there is a struct 
-which has `Semigroup` implemented to combine the types (see below for 
+Semigroup can, and is, defined to allow combination of concrete types, such as `&str/String` and all 
+integral/floating-point types.  These concrete types do not implement `Semigroup` directly.  Rather, there is 
+a struct which has `Semigroup` implemented to combine the types (see below for 
 [why to implement a type operator](#Type-Operator-vs-Direct-Implementation) instead of a direct implementation).
 For numeric types, there are generally two semigroup structs defined, one for additive combination, the other for
 multiplicative.
 
 ### Monoid
 
-The Monoid typeclass represents types which can be empty.  The `Monoid` trait has a single function: 
+The Monoid typeclass represents types which can be empty, or return an "identity" value for which the law:
+`combine(Xvalue, X::empty()) = Xvalue` holds true.  The `Monoid` trait has a single function: 
 
 ```
 fn empty() -> X
 ```
   
 Like, Semigroup, this is implemented on structs for concrete types, such as String and numeric types (again,
-which have a different monoid to return 0 for additive and another to return 1 for multiplicative sitations).
+which have a different monoid to return 0 for additive and another to return 1 for multiplicative situations).
 
 ### Functor
 
@@ -171,8 +259,18 @@ a Functor will just map data inside a context, but in this case, we are getting 
 functions we are calling.  This would result in a more-and-more complex nesting of contexts, as a 
 `Option<u32>` would map to a `Option<Option<String>>` and so on.
 
+```text
+    +---------------+                                    +---------------------------------+          
+    | Option        |    Call "fmap" with                | Option                          |
+    |       Int(3)  | => fn returning Option<String> =>  |   +-------------------------+   |  
+    +---------------+                                    |   | Option                  |   |
+                                                         |   |     String("No errors") |   |
+                                                         |   +-------------------------+   |
+                                                         +---------------------------------+
+```
+
 Instead, we just want that `Option<u32>` to be passed to a new function, acted upon, and then an 
-`Option<String>` to get spit out, which can then be chained to another function, and so on.  To accomplish this,
+`Option<String>` to get spit out, which can then be chained to another function, and so on. To accomplish this,
 we can call`fmap`, using a function that returns a new context (like an `Option`) and then "flatten" the
 resulting structure (`Option<Option<T>>` becomes `Option<T>`, for example) because the interim contexts
 are ultimately not useful.  This "map + flatten" action is often called "flat_map", which is actually the
@@ -180,6 +278,14 @@ function defined in the `Monad` trait (which requires `Applicative`):
 
 ```
 fn flat_map(fx: FX, func: Fn(X) -> FY) -> FY
+```
+
+```text
+    +---------------+                                    +------------------------+          
+    | Option        |    Call "flat_map" with            | Option                 |
+    |       Int(3)  | => fn returning Option<String> =>  |    String("No errors") |  
+    +---------------+                                    +------------------------+
+                                                         
 ```
 
 Rust often defines this as an `and_then` function, which makes sense for certain contexts, like Option and 
@@ -258,7 +364,7 @@ this functionality in the standalone `Traverse` trait:
 fn traverse(fa: FX, func: impl Fn(X) -> E) -> FR
 ```
 
-The new types: `E` and `FR` are defines as:
+The new types: `E` and `FR` are defined as:
 
 `E` - The interim context returned by the function. For example, a series of calls to a DB might all
 return Result<String, String>, so `E` is `Result<String, String>`
@@ -377,7 +483,7 @@ New ones must be provided if further type differentiations are needed.
 
 ## Implementing a new type
 
-The ebst way to illustrate implementing typeclasses for a new type is by example.  Let's define a new type
+The best way to illustrate implementing typeclasses for a new type is by example.  Let's define a new type
 called "Pair" which takes two values of the same type (so, only one type parameter):
 
 ```rust
@@ -532,8 +638,8 @@ def foo[X: Monad](x: X): Y = ??
 ``` 
 
 This will actually lead to many problems in more complex situations, where the program will just not compile.
-Furthermore, in the definitive typeclass definition in Haskell, a Monad has the "kind": `(\* -> \*) -> \*`
-which means a type which takes a "`(\* -> \*)`" and returns a type of the kind `\* -> \*`.  This returned
+Furthermore, in the definitive typeclass definition in Haskell, a Monad has the "kind": `(* -> *) -> *`
+which means a type which takes a `(* -> *)` and returns a type of the kind `* -> *`.  This returned
 type just needs a concrete type (like Int or String) to form a concrete, usable type.
 
 That first step is saying that we need a type that accepts a type constructor.  The input to a Monad should itself
