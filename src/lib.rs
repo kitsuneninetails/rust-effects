@@ -5,6 +5,7 @@
 
 pub mod effects;
 pub mod future;
+pub mod futureresult;
 pub mod option;
 pub mod result;
 pub mod typeclasses;
@@ -29,6 +30,7 @@ pub mod prelude {
         io::*
     };
     pub use crate::future::*;
+    pub use crate::futureresult::*;
     pub use crate::option::*;
     pub use crate::result::*;
     pub use crate::vec::*;

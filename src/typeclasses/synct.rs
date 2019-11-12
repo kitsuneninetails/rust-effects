@@ -10,6 +10,7 @@ pub trait SyncT<'a> : Monad<'a> {
 
 pub trait SyncTEffect<'a>: Sized where Self: F<<Self as SyncTEffect<'a>>::X> {
     type X;
+    type E;
     type Fct: SyncT<'a, X=Self::X, FX=Self, Y=Self::X, FY=Self> + Effect;
 }
 
@@ -20,7 +21,7 @@ pub fn suspend<'a, FX, X>(thunk: impl Fn() -> FX + 'a + Send + Sync) -> FX
     FX::Fct::suspend(thunk)
 }
 
-pub fn delay<'a, FX, X>(thunk: impl Fn() -> FX::X + 'a + Send + Sync) -> FX
+pub fn delay<'a, FX, X, E>(thunk: impl Fn() -> Result<FX::X, FX::E> + 'a + Send + Sync) -> FX
     where
         FX: F<X> + SyncTEffect<'a>,
         X: 'a + Send + Sync {

@@ -6,7 +6,7 @@
 ///     `combine(Err(E1), Ok(Y)) => Err(E1)`
 ///     `combine(Err(E1), Err(E2)) => Err(E1)`
 /// Monoid
-///     `empty() => Err(E)`
+///     `empty() => Ok(X::empty())`
 /// Applicative
 ///     `pure(X) => Ok(X)`
 /// Functor
@@ -100,9 +100,9 @@ impl <'a, X, E> SemigroupInner<'a, Result<X, E>, X> for ResultEffect<E, X, X, X>
     }
 }
 
-impl<E: Default, X, Y, Z> Monoid<Result<X, E>> for ResultEffect<E, X, Y, Z> {
+impl<E, X: MonoidEffect<X>, Y, Z> Monoid<Result<X, E>> for ResultEffect<E, X, Y, Z> {
     fn empty() -> Result<X, E> {
-        Err(E::default())
+        Ok(X::empty())
     }
 }
 
@@ -197,7 +197,7 @@ mod tests {
     #[test]
     fn test_monoid() {
         let out: Result<u32, ()> = empty();
-        assert_eq!(Err(()), out);
+        assert_eq!(Ok(0), out);
     }
 
     #[test]
