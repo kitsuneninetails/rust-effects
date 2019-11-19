@@ -31,15 +31,23 @@ impl Effect for IntAddMonoid {}
 pub struct IntMulMonoid;
 impl Effect for IntMulMonoid {}
 
+impl<'a> Monoid<&'a str> for StringMonoid {
+    fn empty() -> &'a str { "" }
+}
+impl<'a> MonoidEffect<&'a str> for &'a str {
+    type Fct = StringMonoid;
+}
+
 monoid_impl! { StringMonoid, "".to_string(), String }
+
 monoid_impl! { IntAddMonoid, 0, u8 u16 u32 u64 i8 i16 i32 i64 }
 monoid_impl! { IntAddMonoid, 0.0, f32 f64 }
 
 monoid_impl! { IntMulMonoid, 1, u8 u16 u32 u64 i8 i16 i32 i64 }
 monoid_impl! { IntMulMonoid, 1.0, f32 f64 }
 
-monoid_eff_impl! { StringMonoid, StringMonoid, String }
-monoid_eff_impl! { IntAddMonoid, IntAddMonoid, u8 u16 u32 u64 i8 i16 i32 i64 f32 f64 }
+monoid_eff_impl! { StringMonoid, String }
+monoid_eff_impl! { IntAddMonoid, u8 u16 u32 u64 i8 i16 i32 i64 f32 f64 }
 
 #[cfg(test)]
 mod tests {
@@ -47,7 +55,7 @@ mod tests {
 
     #[test]
     fn test_strings() {
-        let out = StringMonoid::empty();
+        let out: &str = StringMonoid::empty();
         assert_eq!(out, "");
     }
 

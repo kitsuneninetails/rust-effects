@@ -18,8 +18,8 @@ macro_rules! sg_impl {
 
 #[macro_export]
 macro_rules! monoid_eff_impl {
-    ($m:ty, $me:expr, $($t:ty)+) => ($(
-        impl MonoidEffect<$t> for $m {
+    ($m:ty, $($t:ty)+) => ($(
+        impl MonoidEffect<$t> for $t {
             type Fct = $m;
         }
     )+)
@@ -40,7 +40,9 @@ macro_rules! monoid_effect {
         }
     );
     (2, $m:ident, $eff:ident) => (
-        impl<X, E: Default> MonoidEffect<$m<X, E>> for $m<X, E> {
+        impl<X, E: Debug> MonoidEffect<$m<X, E>> for $m<X, E>
+            where
+                X: MonoidEffect<X> {
             type Fct = $eff<E, X, (), ()>;
         }
     );
@@ -48,7 +50,7 @@ macro_rules! monoid_effect {
         impl<'a, X, E> MonoidEffect<$m<'a, X, E>> for $m<'a, X, E>
             where
                 X: 'a + Send + Sync + MonoidEffect<X> ,
-                E: 'a + Send + Sync {
+                E: 'a + Send + Sync + Debug {
             type Fct = $eff<'a, E, X, (), ()>;
         }
     );
@@ -68,7 +70,9 @@ macro_rules! semigroup_effect {
     (1, $m:ident, $eff:ident) => (
         impl<'a, X, X2, XR> SemigroupEffect<$m<X>, $m<X2>, $m<XR>> for $m<X>
             where
-                X: SemigroupEffect<X, X2, XR> {
+                X: SemigroupEffect<X, X2, XR> + SemigroupEffect<X, XR, XR>,
+                X2: SemigroupEffect<X2, XR, XR>,
+                XR: MonoidEffect<XR> {
             type Fct = $eff<X, X2, XR>;
         }
     );
@@ -80,26 +84,28 @@ macro_rules! semigroup_effect {
     (S, $m:ident, $eff:ident) => (
         impl<'a, X, X2, XR> SemigroupEffect<$m<'a, X>, $m<'a, X2>, $m<'a, XR>> for $m<'a, X>
             where
-                X: 'a + SemigroupEffect<X, X2, XR> + Send + Sync,
-                X2: 'a + Send + Sync,
-                XR: 'a + Send + Sync {
+                X: 'a + SemigroupEffect<X, X2, XR>  + SemigroupEffect<X, XR, XR> + Send + Sync,
+                X2: 'a + SemigroupEffect<X2, XR, XR> + Send + Sync,
+                XR: 'a + MonoidEffect<XR> + Send + Sync {
             type Fct = $eff<'a, X, X2, XR>;
         }
     );
     (2, $m:ident, $eff:ident) => (
-        impl<'a, E, X, X2, XR> SemigroupEffect<$m<X, E>, $m<X2, E>, $m<XR, E>> for $m<X, E>
+        impl<'a, E: Debug, X, X2, XR> SemigroupEffect<$m<X, E>, $m<X2, E>, $m<XR, E>> for $m<X, E>
             where
-                X: SemigroupEffect<X, X2, XR> {
+                X: SemigroupEffect<X, X2, XR> + SemigroupEffect<X, XR, XR>,
+                X2: SemigroupEffect<X2, XR, XR>,
+                XR: MonoidEffect<XR> {
             type Fct = $eff<E, X, X2, XR>;
         }
     );
     (2S, $m:ident, $eff:ident) => (
         impl<'a, E, X, X2, XR> SemigroupEffect<$m<'a, X, E>, $m<'a, X2, E>, $m<'a, XR, E>> for $m<'a, X, E>
             where
-                X: 'a + SemigroupEffect<X, X2, XR> + Send + Sync,
-                X2: 'a + Send + Sync,
-                XR: 'a + Send + Sync,
-                E: 'a + Send + Sync {
+                X: 'a + SemigroupEffect<X, X2, XR>  + SemigroupEffect<X, XR, XR> + Send + Sync,
+                X2: 'a + SemigroupEffect<X2, XR, XR> + Send + Sync,
+                XR: 'a + MonoidEffect<XR> + Send + Sync,
+                E: 'a + Send + Sync + Debug {
             type Fct = $eff<'a, E, X, X2, XR>;
         }
     )
@@ -122,7 +128,7 @@ macro_rules! applicative_effect {
         }
     );
     (2, $m:ident, $eff:ident) => (
-        impl<'a, X, E> ApplicativeEffect<'a> for $m<X, E> {
+        impl<'a, X, E: Debug> ApplicativeEffect<'a> for $m<X, E> {
             type X = X;
             type Fct = $eff<E, X, (), ()>;
         }
@@ -131,8 +137,8 @@ macro_rules! applicative_effect {
         impl<'a, X, E> ApplicativeEffect<'a> for $m<'a, X, E>
             where
                 X: 'a + Send + Sync,
-                E: 'a + Send + Sync {
-            type X = Result<X, E>;
+                E: 'a + Send + Sync + Debug {
+            type X = X;
             type Fct = $eff<'a, E, X, (), ()>;
         }
     );
@@ -158,7 +164,7 @@ macro_rules! functor_effect {
         }
     );
     (2, $m:ident, $eff:ident) => (
-        impl<'a, X, Y, E> FunctorEffect<'a, X, Y> for $m<X, E> {
+        impl<'a, X, Y, E: Debug> FunctorEffect<'a, X, Y> for $m<X, E> {
             type FX = $m<X, E>;
             type FY = $m<Y, E>;
             type Fct = $eff<E, X, Y, ()>;
@@ -169,7 +175,7 @@ macro_rules! functor_effect {
             where
                 X: 'a + Send + Sync,
                 Y: 'a + Send + Sync,
-                E: 'a + Send + Sync {
+                E: 'a + Send + Sync + Debug {
             type FX = $m<'a, X, E>;
             type FY = $m<'a, Y, E>;
             type Fct = $eff<'a, E, X, Y, ()>;
@@ -208,7 +214,7 @@ macro_rules! functor2_effect {
         }
     );
     (2, $m:ident, $eff:ident) => (
-        impl<'a, X, Y, Z, E> Functor2Effect<'a, X, Y, Z> for $m<X, E> {
+        impl<'a, X, Y, Z, E: Debug> Functor2Effect<'a, X, Y, Z> for $m<X, E> {
             type FX = $m<X, E>;
             type FY = $m<Y, E>;
             type FZ = $m<Z, E>;
@@ -221,7 +227,7 @@ macro_rules! functor2_effect {
                 X: 'a + Send + Sync,
                 Y: 'a + Send + Sync,
                 Z: 'a + Send + Sync,
-                E: 'a + Send + Sync {
+                E: 'a + Send + Sync + Debug {
             type FX = $m<'a, X, E>;
             type FY = $m<'a, Y, E>;
             type FZ = $m<'a, Z, E>;
@@ -250,7 +256,7 @@ macro_rules! monad_effect {
         }
     );
     (2, $m:ident, $eff:ident) => (
-        impl<'a, X, Y, E> MonadEffect<'a, X, Y> for $m<X, E> {
+        impl<'a, X, Y, E: Debug> MonadEffect<'a, X, Y> for $m<X, E> {
             type FX = $m<X, E>;
             type FY = $m<Y, E>;
             type Fct = $eff<E, X, Y, ()>;
@@ -261,7 +267,7 @@ macro_rules! monad_effect {
             where
                 X: 'a + Send + Sync,
                 Y: 'a + Send + Sync,
-                E: 'a + Send + Sync {
+                E: 'a + Send + Sync + Debug {
             type FX = $m<'a, X, E>;
             type FY = $m<'a, Y, E>;
             type Fct = $eff<'a, E, X, Y, ()>;
@@ -293,7 +299,7 @@ macro_rules! foldable_effect {
         }
     );
     (2, $m:ident, $eff:ident) => (
-        impl<'a, X, Y: Clone, E> FoldableEffect<'a, X, Y, Y> for $m<X, E> {
+        impl<'a, X, Y: Clone, E: Debug> FoldableEffect<'a, X, Y, Y> for $m<X, E> {
             type FX = $m<X, E>;
             type Fct = $eff<E, X, Y, ()>;
         }
@@ -303,9 +309,46 @@ macro_rules! foldable_effect {
             where
                 X: 'a + Send + Sync,
                 Y: 'a + Send + Sync,
-                E: 'a + Send + Sync {
+                E: 'a + Send + Sync + Debug {
             type FX = $m<'a, X, E>;
             type Fct = $eff<'a, E, X, Y, ()>;
+        }
+    );
+}
+
+#[macro_export]
+macro_rules! monaderror_effect {
+    (1, $m:ident, $eff:ident) => (
+        impl<'a, X> MonadErrorEffect<'a, X> for $m<X> {
+            type X = X;
+            type E = ();
+            type Fct = $eff<X, (), ()>;
+        }
+    );
+    (S, $m:ident, $eff:ident) => (
+        impl<'a, X> MonadErrorEffect<'a, X> for $m<'a, X>
+            where
+                X: 'a + Send + Sync {
+            type X = X;
+            type E = ();
+            type Fct = $eff<'a, X, (), ()>;
+        }
+    );
+    (2, $m:ident, $eff:ident) => (
+        impl<'a, X, E: Debug> MonadErrorEffect<'a, X> for $m<X, E> {
+            type X = X;
+            type E = E;
+            type Fct = $eff<E, X, (), ()>;
+        }
+    );
+    (2S, $m:ident, $eff:ident) => (
+        impl<'a, E, X> MonadErrorEffect<'a, X> for $m<'a, X, E>
+            where
+                X: 'a + Send + Sync,
+                E: 'a + Send + Sync + Debug {
+            type X = X;
+            type E = E;
+            type Fct = $eff<'a, E, X, (), ()>;
         }
     );
 }
@@ -332,7 +375,7 @@ macro_rules! productable_effect {
         }
     );
     (2, $m:ident, $eff:ident) => (
-        impl<'a, X: Clone, Y: Clone, E> ProductableEffect<'a, X, Y> for $m<X, E> {
+        impl<'a, X: Clone, Y: Clone, E: Debug> ProductableEffect<'a, X, Y> for $m<X, E> {
             type FX = $m<X, E>;
             type FY = $m<Y, E>;
             type FXY = $m<(X, Y), E>;
@@ -344,7 +387,7 @@ macro_rules! productable_effect {
             where
                 X: 'a + Send + Sync,
                 Y: 'a + Send + Sync,
-                E: 'a + Send + Sync {
+                E: 'a + Send + Sync + Debug {
             type FX = $m<'a, X, E>;
             type FY = $m<'a, Y, E>;
             type FXY = $m<'a, (X, Y), E>;
@@ -368,7 +411,7 @@ macro_rules! synct_effect {
         impl<'a, X, E> SyncTEffect<'a> for $m<'a, X, E>
             where
                 X: 'a + Send + Sync,
-                E: 'a + Send + Sync {
+                E: 'a + Send + Sync + Debug {
             type E = E;
             type X = X;
             type Fct = $eff<'a, E, X, X, ()>;

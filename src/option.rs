@@ -1,9 +1,10 @@
 /// Option Typeclass Behaviors
 ///
-/// Semigroup
+/// Semigroup (result-type must be a monoid for identity and parameters must be semigroup
+/// for combination)
 ///     `combine(Some(X), Some(Y)) => Some(combine(X, Y))`
-///     `combine(Some(X), None) => None`
-///     `combine(None, Some(Y)) => None`
+///     `combine(Some(X), None) => Some(X)`
+///     `combine(None, Some(Y)) => Some(Y)`
 ///     `combine(None, None) => None`
 /// Monoid
 ///     `empty() => None`
@@ -21,6 +22,8 @@
 ///     `flat_map(Some(X), fn T1 -> Option<T2>) => Some(Y)` if fn(X) returns Some(Y)
 ///     `flat_map(Some(X), fn T1 -> Option<T2>) => None` if fn(X) returns None
 ///     `flat_map(None, fn T1 -> Option<T2>) => None`
+/// MonadError
+///     `raise_error(E) => None`
 /// Foldable
 ///     `fold(Some(X), init, fn TI T1 -> TI) => fn(init, X)`
 ///     `fold(None, init, fn TI T1 -> TI) => init`
@@ -46,6 +49,7 @@ functor_effect! { 1, Option, OptionEffect }
 functor2_effect! { 1, Option, OptionEffect }
 monad_effect! { 1, Option, OptionEffect }
 foldable_effect! { 1C, Option, OptionEffect }
+monaderror_effect! { 1, Option, OptionEffect }
 productable_effect! { 1, Option, OptionEffect }
 
 pub struct OptionEffect<X=(), Y=(), Z=()> {
@@ -61,14 +65,6 @@ impl<X, Y, Z> OptionEffect<X, Y, Z> {
             _c: PhantomData
         }
     }
-
-    fn combine_options<X1, X2, XR, F>(a: Option<X1>,
-                                  b: Option<X2>,
-                                  func: F) -> Option<XR>
-        where
-            F: FnOnce(X1, X2) -> XR {
-        a.and_then(|i| b.map(|j| func(i, j)))
-    }
 }
 
 #[macro_export]
@@ -80,17 +76,30 @@ impl<X, Y, Z> Effect for OptionEffect<X, Y, Z> {}
 
 impl<X, X2, XR> Semigroup<Option<X>, Option<X2>, Option<XR>> for OptionEffect<X, X2, XR>
     where
-        X: SemigroupEffect<X, X2, XR> {
+        X: SemigroupEffect<X, X2, XR> + SemigroupEffect<X, XR, XR>,
+        X2: SemigroupEffect<X2, XR, XR>,
+        XR: MonoidEffect<XR> {
     fn combine(a: Option<X>, b: Option<X2>) -> Option<XR> {
-        OptionEffect::<X, X2, XR>::combine_options(a, b, combine)
+        match (a, b) {
+            (None, None) => None,
+            (Some(a), None) => Some(combine::<X, XR, XR>(a, empty::<XR>())),
+            (None, Some(b)) => Some(combine::<X2, XR, XR>(b, empty::<XR>())),
+            (Some(a), Some(b)) => Some(combine(a, b))
+        }
     }
 }
 
 impl <'a, X> SemigroupInner<'a, Option<X>, X> for OptionEffect<X, X, X> where X: 'a {
     fn combine_inner<TO>(a: Option<X>, b: Option<X>) -> Option<X>
         where
-            TO: 'a + Semigroup<X, X, X> {
-        Self::combine_options(a, b, TO::combine)
+            TO: 'a + Semigroup<X, X, X>,
+            X: MonoidEffect<X> {
+        match (a, b) {
+            (None, None) => None,
+            (Some(a), None) => Some(TO::combine(a, empty::<X>())),
+            (None, Some(b)) => Some(TO::combine(empty::<X>(), b)),
+            (Some(a), Some(b)) => Some(TO::combine(a, b))
+        }
     }
 }
 
@@ -140,6 +149,22 @@ impl<'a, X, Y: Clone, Z> Foldable<'a> for OptionEffect<X, Y, Z> {
         }
     }
 }
+
+impl<'a, X, Y, Z> MonadError<'a> for OptionEffect<X, Y, Z> {
+    type E=();
+    fn raise_error(_err: Self::E) -> Self::FX {
+        None
+    }
+
+    fn handle_error(f: Self::FX, recovery: impl 'a + Fn(Self::E) -> Self::FX) -> Self::FX {
+        f.or_else(|| recovery(()))
+    }
+
+    fn attempt(f: Self::FX) -> Result<Self::X, Self::E> {
+        f.ok_or(())
+    }
+}
+
 impl<'a, X: Clone, Y: Clone, Z> Productable<'a> for OptionEffect<X, Y, Z> {
     type FXY = Option<(X, Y)>;
     fn product(fa: Self::FX, fb: Self::FY) -> Self::FXY {
@@ -163,7 +188,7 @@ mod tests {
         let b = None;
 
         let out = combine(a, b);
-        assert_eq!(None, out);
+        assert_eq!(Some(3), out);
 
         let a = Some("Hello");
         let b = Some(" World".to_string());
@@ -236,6 +261,9 @@ mod tests {
         let out: Option<u32> = empty();
         let res = fold(out, 0, |init, i| init + i);
         assert_eq!(0, res);
+
+        let out: Option<u32> = pure(2);
+        let out2: Option<u32> = pure(3);
     }
 
     #[test]

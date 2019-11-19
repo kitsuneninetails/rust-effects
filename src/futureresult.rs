@@ -36,8 +36,10 @@ use futures::Poll;
 use futures::task::Context;
 use std::pin::Pin;
 use std::marker::PhantomData;
+use std::fmt::Debug;
 
 use crate::*;
+use futures::executor::block_on;
 
 pub struct ConcreteFutureResult<'a, X, E> {
     pub inner: BoxFuture<'a, Result<X, E>>
@@ -51,7 +53,7 @@ impl<'a, E, X> ConcreteFutureResult<'a, X, E> {
     }
 }
 
-pub fn fut_res<'a, T, E>(f: impl 'a + Send + Sync + Future<Output=Result<T, E>>) -> ConcreteFutureResult<'a, T, E> {
+pub fn fut_res<'a, T, E>(f: impl 'a + Send + Future<Output=Result<T, E>>) -> ConcreteFutureResult<'a, T, E> {
     ConcreteFutureResult::new(f)
 }
 
@@ -64,6 +66,7 @@ applicative_effect! { 2S, ConcreteFutureResult, FutureResultEffect }
 functor_effect! { 2S, ConcreteFutureResult, FutureResultEffect }
 functor2_effect! { 2S, ConcreteFutureResult, FutureResultEffect }
 monad_effect! { 2S, ConcreteFutureResult, FutureResultEffect }
+monaderror_effect! { 2S, ConcreteFutureResult, FutureResultEffect }
 foldable_effect! { 2S, ConcreteFutureResult, FutureResultEffect }
 productable_effect! { 2S, ConcreteFutureResult, FutureResultEffect }
 
@@ -141,7 +144,7 @@ impl<'a, X1, X2, R, E> Semigroup<
         X1: SemigroupEffect<X1, X2, R> + 'a + Send + Sync,
         X2: 'a + Send + Sync,
         R: 'a + Send + Sync,
-        E: 'a + Send + Sync  {
+        E: 'a + Send + Sync + Debug  {
     fn combine(a: ConcreteFutureResult<'a, X1, E>,
                b: ConcreteFutureResult<'a, X2, E>) -> ConcreteFutureResult<'a, R, E> {
         Self::combine_futures(a, b, combine)
@@ -151,7 +154,7 @@ impl<'a, X1, X2, R, E> Semigroup<
 impl <'a, E, X> SemigroupInner<'a, ConcreteFutureResult<'a, X, E>, X> for FutureResultEffect<'a, E, X, X, X>
     where
         X: 'a + Send + Sync,
-        E: 'a + Send + Sync {
+        E: 'a + Send + Sync + Debug {
     fn combine_inner<TO>(a: ConcreteFutureResult<'a, X, E>,
                          b: ConcreteFutureResult<'a, X, E>) -> ConcreteFutureResult<'a, X, E>
         where
@@ -164,7 +167,7 @@ impl<'a, E, X, Y, Z> Functor<'a> for FutureResultEffect<'a, E, X, Y, Z>
     where
         X: 'a + Send + Sync,
         Y: 'a + Send + Sync,
-        E: 'a + Send + Sync  {
+        E: 'a + Send + Sync + Debug  {
     type X = X;
     type Y = Y;
     type FX = ConcreteFutureResult<'a, X, E>;
@@ -178,7 +181,7 @@ impl<'a, X, Y, Z, E> Applicative<'a> for FutureResultEffect<'a, E, X, Y, Z>
     where
         X: 'a + Send + Sync,
         Y: 'a + Send + Sync,
-        E: 'a + Send + Sync {
+        E: 'a + Send + Sync + Debug {
     fn pure(x: X) -> Self::FX {
         ConcreteFutureResult::new(ready(Ok(x)))
     }
@@ -189,7 +192,7 @@ impl<'a, E, X, Y, Z> Functor2<'a> for FutureResultEffect<'a, E, X, Y, Z>
         X: 'a + Send + Sync,
         Y: 'a + Send + Sync,
         Z: 'a + Send + Sync,
-        E: 'a + Send + Sync {
+        E: 'a + Send + Sync + Debug {
     type Z = Z;
     type FZ = ConcreteFutureResult<'a, Z, E>;
     fn fmap2(fa: Self::FX,
@@ -205,7 +208,7 @@ impl<'a, E, X, Y, Z> Monad<'a> for FutureResultEffect<'a, E, X, Y, Z>
     where
         X: 'a + Send + Sync,
         Y: 'a + Send + Sync,
-        E: 'a + Send + Sync {
+        E: 'a + Send + Sync + Debug {
     fn flat_map(f: Self::FX, func: impl 'a + Fn(Self::X) -> Self::FY + Send + Sync) -> Self::FY {
         let res = ConcreteFutureResult::new(f.then(move |f_fut| match f_fut {
             Ok(f_in) => func(f_in),
@@ -219,12 +222,36 @@ impl<'a, E, X, Y, Z> Foldable<'a> for FutureResultEffect<'a, E, X, Y, Z>
     where
         X: 'a + Send + Sync,
         Y: 'a + Send + Sync,
-        E: 'a + Send + Sync {
+        E: 'a + Send + Sync + Debug {
     type Z = ConcreteFutureResult<'a, Y, E>;
     fn fold(f: Self::FX,
             init: Self::Y,
             func: impl 'a + Fn(Self::Y, Self::X) -> Self::Y + Send + Sync) -> Self::Z {
         ConcreteFutureResult::new(f.map(move |f_fut| f_fut.map(|f_in| func(init, f_in))))
+    }
+}
+
+impl<'a, E, X, Y, Z> MonadError<'a> for FutureResultEffect<'a, E, X, Y, Z>
+    where
+        X: 'a + Send + Sync,
+        Y: 'a + Send + Sync,
+        E: 'a + Send + Sync + Debug {
+    type E=E;
+    fn raise_error(err: Self::E) -> Self::FX {
+        fut_res(ready(Err(err)))
+    }
+
+    fn handle_error(f: Self::FX, recovery: impl 'a + Send + Sync + Fn(Self::E) -> Self::FX) -> Self::FX {
+        fut_res(f.then(move |r| match r {
+            Ok(o) => pure(o),
+            Err(e) => recovery(e)
+        }))
+    }
+
+    fn attempt(f: Self::FX) -> Result<Self::X, Self::E> {
+        block_on(async {
+            f.await
+        })
     }
 }
 
@@ -236,7 +263,7 @@ pub fn vfold<'a, X, Y, E>(f: Vec<ConcreteFutureResult<'a, X, E>>,
     where
         X: 'a + Send + Sync,
         Y: 'a + Send + Sync,
-        E: 'a + Send + Sync {
+        E: 'a + Send + Sync + Debug {
     VecEffect::<ConcreteFutureResult<X, E>, ConcreteFutureResult<Y, E>>::fold(
         f,
         FutureResultEffect::<'a, E, Y>::pure(init),
@@ -254,7 +281,7 @@ impl<'a, X: Clone, Y: Clone, Z, E> Productable<'a> for FutureResultEffect<'a, E,
     where
         X: 'a + Send + Sync,
         Y: 'a + Send + Sync,
-        E: 'a + Send + Sync {
+        E: 'a + Send + Sync + Debug {
     type FXY = ConcreteFutureResult<'a, (X, Y), E>;
     fn product(fa: Self::FX, fb: Self::FY) -> Self::FXY {
         fmap2(fa, fb, |a, b| (a.clone(), b.clone()))
@@ -287,7 +314,7 @@ mod tests {
     fn test_monoid() {
         block_on(async {
             let f: ConcreteFutureResult<u32, ()> = empty();
-            assert_eq!(f.await, Err(()));
+            assert_eq!(f.await, Ok(0));
         });
     }
 
@@ -312,7 +339,7 @@ mod tests {
         block_on(async {
             let f: ConcreteFutureResult<u32, ()> = empty();
             let f = fmap(f, |i| format!("{} strings", i));
-            assert_eq!(f.await, Err(()));
+            assert_eq!(f.await,  Ok("0 strings".to_string()));
         });
     }
 
@@ -356,6 +383,38 @@ mod tests {
             });
             assert_eq!(f.await, Err("Good error"));
         });
+    }
+
+    #[test]
+    fn test_monad_error() {
+        block_on(async {
+            let f: ConcreteFutureResult<u32, u32> = pure(3u32);
+            let f: ConcreteFutureResult<String, u32> = flat_map(f, |i| match i % 2 {
+                0 => pure("Good".to_string()),
+                _ => raise_error(i)
+            });
+            assert_eq!(f.await, Err(3));
+        });
+
+        block_on(async {
+            let f: ConcreteFutureResult<u32, u32> = pure(3u32);
+            let f: ConcreteFutureResult<String, u32> = flat_map(f, |i| match i % 2 {
+                0 => pure("Good".to_string()),
+                _ => raise_error(i)
+            });
+            let f: ConcreteFutureResult<String, u32> = handle_error(f, |e| pure(format!("{}", e)));
+
+            assert_eq!(f.await, Ok("3".to_string()));
+        });
+
+        let f: ConcreteFutureResult<u32, u32> = pure(3u32);
+        let f: ConcreteFutureResult<String, u32> = flat_map(f, |i| match i % 2 {
+            0 => pure("Good".to_string()),
+            _ => raise_error(i)
+        });
+        let r = attempt(f);
+
+        assert_eq!(r, Err(3));
     }
 
     #[test]

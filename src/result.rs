@@ -24,6 +24,8 @@
 /// Foldable
 ///     `fold(Ok(X), init, fn TI T1 -> TI) => fn(init, X)`
 ///     `fold(Err(E), init, fn TI T1 -> TI) => init`
+/// MonadError
+///     `raise_error(E) => Err(E)`
 /// Productable -
 ///     `product(Ok(X), Ok(Y)) => Ok((X, Y))`
 ///     `product(Ok(X), Err(E2)) => Err(2E)`
@@ -34,10 +36,11 @@
 
 use super::prelude::*;
 use std::marker::PhantomData;
+use std::fmt::Debug;
 
 use crate::*;
 
-impl<X, E> F<X> for Result<X, E> {}
+impl<X, E: Debug> F<X> for Result<X, E> {}
 
 semigroup_effect! { 2, Result, ResultEffect }
 monoid_effect! { 2, Result, ResultEffect }
@@ -46,16 +49,17 @@ functor_effect! { 2, Result, ResultEffect }
 functor2_effect! { 2, Result, ResultEffect }
 monad_effect! { 2, Result, ResultEffect }
 foldable_effect! { 2, Result, ResultEffect }
+monaderror_effect! { 2, Result, ResultEffect }
 productable_effect! { 2, Result, ResultEffect }
 
-pub struct ResultEffect<E, X=(), Y=(), Z=()> {
+pub struct ResultEffect<E: Debug, X=(), Y=(), Z=()> {
     _a: PhantomData<X>,
     _b: PhantomData<Y>,
     _c: PhantomData<Z>,
     _p: PhantomData<E>
 }
 
-impl<E, X, Y, Z> ResultEffect<E, X, Y, Z> {
+impl<E: Debug, X, Y, Z> ResultEffect<E, X, Y, Z> {
     pub fn apply(_: Z) -> Self {
         ResultEffect {
             _a: PhantomData,
@@ -79,9 +83,9 @@ macro_rules! result_monad {
     () => (ResultEffect::apply(()))
 }
 
-impl<E, X, Y, Z> Effect for ResultEffect<E, X, Y, Z>{}
+impl<E: Debug, X, Y, Z> Effect for ResultEffect<E, X, Y, Z>{}
 
-impl<X, X2, XR, E> Semigroup<
+impl<X, X2, XR, E: Debug> Semigroup<
     Result<X, E>,
     Result<X2, E>,
     Result<XR, E>> for ResultEffect<E, X, X2, XR>
@@ -92,7 +96,7 @@ impl<X, X2, XR, E> Semigroup<
     }
 }
 
-impl <'a, X, E> SemigroupInner<'a, Result<X, E>, X> for ResultEffect<E, X, X, X>  where X: 'a, E: 'a {
+impl <'a, X, E: Debug> SemigroupInner<'a, Result<X, E>, X> for ResultEffect<E, X, X, X>  where X: 'a, E: 'a {
     fn combine_inner<TO>(a: Result<X, E>, b: Result<X, E>) -> Result<X, E>
         where
             TO: 'a + Semigroup<X, X, X> {
@@ -100,13 +104,13 @@ impl <'a, X, E> SemigroupInner<'a, Result<X, E>, X> for ResultEffect<E, X, X, X>
     }
 }
 
-impl<E, X: MonoidEffect<X>, Y, Z> Monoid<Result<X, E>> for ResultEffect<E, X, Y, Z> {
+impl<E: Debug, X: MonoidEffect<X>, Y, Z> Monoid<Result<X, E>> for ResultEffect<E, X, Y, Z> {
     fn empty() -> Result<X, E> {
-        Ok(X::empty())
+        Ok(empty::<X>())
     }
 }
 
-impl<'a, E, X, Y, Z> Functor<'a> for ResultEffect<E, X, Y, Z> {
+impl<'a, E: Debug, X, Y, Z> Functor<'a> for ResultEffect<E, X, Y, Z> {
     type X = X;
     type Y = Y;
     type FX = Result<X, E>;
@@ -116,13 +120,13 @@ impl<'a, E, X, Y, Z> Functor<'a> for ResultEffect<E, X, Y, Z> {
     }
 }
 
-impl<'a, E, X, Y, Z> Applicative<'a> for ResultEffect<E, X, Y, Z> {
+impl<'a, E: Debug, X, Y, Z> Applicative<'a> for ResultEffect<E, X, Y, Z> {
     fn pure(x: X) -> Self::FX {
         Ok(x)
     }
 }
 
-impl<'a, E, X, Y, Z> Functor2<'a> for ResultEffect<E, X, Y, Z> {
+impl<'a, E: Debug, X, Y, Z> Functor2<'a> for ResultEffect<E, X, Y, Z> {
     type Z = Z;
     type FZ = Result<Z, E>;
     fn fmap2(r1: Self::FX,
@@ -132,13 +136,13 @@ impl<'a, E, X, Y, Z> Functor2<'a> for ResultEffect<E, X, Y, Z> {
     }
 }
 
-impl<'a, E, X, Y, Z> Monad<'a> for ResultEffect<E, X, Y, Z> {
+impl<'a, E: Debug, X, Y, Z> Monad<'a> for ResultEffect<E, X, Y, Z> {
     fn flat_map(f: Self::FX, func: impl 'a + Fn(Self::X) -> Self::FY + Send + Sync) -> Self::FY {
         f.and_then(func)
     }
 }
 
-impl<'a, X, Y: Clone, Z, E> Foldable<'a> for ResultEffect<E, X, Y, Z> {
+impl<'a, X, Y: Clone, Z, E: Debug> Foldable<'a> for ResultEffect<E, X, Y, Z> {
     type Z = Y;
     fn fold(f: Self::FX,
             init: Self::Y,
@@ -150,7 +154,22 @@ impl<'a, X, Y: Clone, Z, E> Foldable<'a> for ResultEffect<E, X, Y, Z> {
     }
 }
 
-impl<'a, X: Clone, Y: Clone, Z, E> Productable<'a> for ResultEffect<E, X, Y, Z> {
+impl<'a, E: Debug, X, Y, Z> MonadError<'a> for ResultEffect<E, X, Y, Z> {
+    type E=E;
+    fn raise_error(err: Self::E) -> Self::FX {
+        Err(err)
+    }
+
+    fn handle_error(f: Self::FX, recovery: impl 'a + Fn(Self::E) -> Self::FX) -> Self::FX {
+        f.or_else(|e| recovery(e))
+    }
+
+    fn attempt(f: Self::FX) -> Result<Self::X, Self::E> {
+        f
+    }
+}
+
+impl<'a, X: Clone, Y: Clone, Z, E: Debug> Productable<'a> for ResultEffect<E, X, Y, Z> {
     type FXY = Result<(X, Y), E>;
     fn product(fa: Self::FX, fb: Self::FY) -> Self::FXY {
         fmap2(fa, fb, |a, b| (a.clone(), b.clone()))
@@ -221,7 +240,7 @@ mod tests {
 
         let out: Result<String, ()> = empty();
         let res = fmap(out, |i| format!("{} World", i));
-        assert_eq!(Err(()), res);
+        assert_eq!(Ok(" World".to_string()), res);
 
         let out1: Result<u32, ()> = pure(3);
         let out2 = pure::<Result<String, ()>>(format!("Bowls"));
@@ -242,8 +261,18 @@ mod tests {
 
         let out: Result<String, ()> = empty();
         let res = flat_map(out, |i| Ok(format!("{} World", i)));
-        assert_eq!(Err(()), res);
+        assert_eq!(Ok(" World".to_string()), res);
 
+    }
+
+    #[test]
+    fn test_monad_error() {
+        let out: Result<u32, u32> = pure(3);
+        let res: Result<String, u32> = flat_map(out, |i| match i % 2 {
+            0 => pure("Good".to_string()),
+            _ => raise_error(i)
+        });
+        assert_eq!(Err(3), res);
     }
 
     #[test]
@@ -256,6 +285,6 @@ mod tests {
         let out1: Result<u32, ()> = pure(3);
         let out2: Result<u32, ()> = empty();
         let res = product(out1, out2);
-        assert_eq!(Err(()), res);
+        assert_eq!(Ok((3, 0)), res);
     }
 }

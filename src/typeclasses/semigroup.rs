@@ -1,5 +1,6 @@
 use super::Effect;
 use crate::{sg_impl, sg_eff_impl};
+use crate::typeclasses::monoid::MonoidEffect;
 
 /// Semigroup Typeclass
 /// Encapsulates any type which is "combine-able", in other words, can be combined to form
@@ -29,7 +30,10 @@ pub trait SemigroupEffect<T, T2, TR> {
 }
 
 pub trait SemigroupInner<'a, T, X> where T: 'a {
-    fn combine_inner<TO>(a: T, b: T) -> T where TO: 'a + Semigroup<X, X, X>;
+    fn combine_inner<TO>(a: T, b: T) -> T
+        where
+            TO: 'a + Semigroup<X, X, X>,
+            X: MonoidEffect<X>;
 }
 
 pub fn combine<T, T2, TR>(a: T, b: T2) -> TR
@@ -41,7 +45,8 @@ pub fn combine<T, T2, TR>(a: T, b: T2) -> TR
 pub fn combine_inner<'a, T, X, TO>(a: T, b: T) -> T
     where
         T: 'a + SemigroupEffect<T, T, T, Fct: SemigroupInner<'a, T, X>>,
-        TO: 'a + Semigroup<X, X, X> {
+        TO: 'a + Semigroup<X, X, X>,
+        X: MonoidEffect<X> {
     T::Fct::combine_inner::<TO>(a, b)
 }
 
@@ -87,9 +92,15 @@ mod tests {
     fn int_combine() {
         let out = combine(1, 2);
         assert_eq!(3, out);
-
+        let out = IntAddSemigroup::combine(1.2, 2.2);
         let out = IntMulSemigroup::combine(1.2, 2.2);
         assert_eq!(2.64, out);
+
+        fn foo<X, S: Semigroup<X, X, X>>(ev: S, a: X, b: X) -> X {
+            S::combine(a, b)
+        }
+
+        assert_eq!(foo(IntAddSemigroup, 2i32, -2i32), 0);
     }
 
     #[test]

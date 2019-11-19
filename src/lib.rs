@@ -19,6 +19,7 @@ pub mod prelude {
         applicative::*,
         functor::*,
         monad::*,
+        monaderror::*,
         monoid::*,
         product::*,
         semigroup::*,
