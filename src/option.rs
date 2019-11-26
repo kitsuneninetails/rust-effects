@@ -261,9 +261,13 @@ mod tests {
         let out: Option<u32> = empty();
         let res = fold(out, 0, |init, i| init + i);
         assert_eq!(0, res);
+    }
 
-        let out: Option<u32> = pure(2);
-        let out2: Option<u32> = pure(3);
+    #[test]
+    fn test_monaderror() {
+        let out: Option<u32> = pure(3);
+        let res: Option<u32> = flat_map(out, |_| raise_error(()));
+        assert_eq!(None, res);
     }
 
     #[test]

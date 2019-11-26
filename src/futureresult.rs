@@ -375,10 +375,10 @@ mod tests {
 
         block_on(async {
             let f: ConcreteFutureResult<u32, &'static str> = pure(3u32);
-            let f: ConcreteFutureResult<u32, &'static str> = flat_map(f, |i| {
+            let f: ConcreteFutureResult<u32, &'static str> = flat_map(f, |_| {
                 ConcreteFutureResult::new(lazy(move |_| Err("Good error")))
             });
-            let f = flat_map(f, |i| {
+            let f = flat_map(f, |_| {
                 ConcreteFutureResult::new(lazy(move |_| Ok(format!("Shouldn't run this"))))
             });
             assert_eq!(f.await, Err("Good error"));

@@ -92,11 +92,12 @@ mod tests {
     fn int_combine() {
         let out = combine(1, 2);
         assert_eq!(3, out);
-        let out = IntAddSemigroup::combine(1.2, 2.2);
-        let out = IntMulSemigroup::combine(1.2, 2.2);
-        assert_eq!(2.64, out);
+        let out: u32 = IntAddSemigroup::combine(1, 2);
+        assert_eq!(3, out);
+        let out: u32 = IntMulSemigroup::combine(1, 2);
+        assert_eq!(2, out);
 
-        fn foo<X, S: Semigroup<X, X, X>>(ev: S, a: X, b: X) -> X {
+        fn foo<X, S: Semigroup<X, X, X>>(_ev: S, a: X, b: X) -> X {
             S::combine(a, b)
         }
 

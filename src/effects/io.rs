@@ -98,6 +98,17 @@ impl<'a, X, E> IO<'a, X, E>
             self.await.unwrap()
         })
     }
+//
+//    pub fn run_async(self) -> X {
+//        let ex = match ThreadPool::new() {
+//            Ok(tp) => {
+//                tp.run()
+//            },
+//            Err(e) => raise_error(e)
+//        }
+//
+//    }
+
 }
 
 impl<'a, X, E> F<X> for IO<'a, X, E>
@@ -321,8 +332,8 @@ impl<'a, E: Debug + Send + Sync, X, Z> SyncT<'a> for IoEffect<'a, E, X, X, Z>
     where
         X: 'a + Send + Sync,
         E: 'a + Send + Sync + Debug {
-    fn suspend(thunk: impl 'a + FnOnce() -> Self::FX + Send + Sync) -> Self::FX {
-        IO::lazy(thunk)
+    fn suspend(thunk: impl 'a + Fn() -> Self::FX + Send + Sync) -> Self::FX {
+       flat_map(IO::apply(|| ()), move |_| thunk())
     }
 
 }
@@ -372,8 +383,8 @@ mod tests {
             println!("World");
             4
         });
-        let t: IO<i32, u32> = flat_map(t, |i| raise_error(2u32));
-        let t: IO<i32, u32> = handle_error(t, |e| pure(200));
+        let t: IO<i32, u32> = flat_map(t, |_| raise_error(2u32));
+        let t: IO<i32, u32> = handle_error(t, |_| pure(200));
         assert_eq!(attempt(t), Ok(200));
     }
 }
