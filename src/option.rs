@@ -119,6 +119,10 @@ impl<'a, X, Y, Z> Functor<'a> for OptionEffect<X, Y, Z> {
 }
 
 impl<'a, X, Y, Z> Applicative<'a> for OptionEffect<X, Y, Z> {
+    type FMap = Option<ConcreteMapper<'a, Self::X, Self::Y>>;
+    fn ap(func: Self::FMap, x: Self::FX) -> Self::FY {
+        func.map(|f| x.map(|x_in| f.call(x_in)))
+    }
     fn pure(x: X) -> Self::FX {
         Some(x)
     }

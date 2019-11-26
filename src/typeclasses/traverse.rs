@@ -16,31 +16,31 @@ use super::{F,
 /// structure, with a single effect E wrapping the Traversable of concrete Y values.
 ///
 /// e.g. T<X> => traverse (gets a T<E<Y>> as an interim value) => E<T<Y>>
-pub trait Traverse<'a, T, E, TR, FR, X, Y>: Effect
+pub trait Traverse<'a, T, E, TR, FR, X, Y, Pl>: Effect
     where T: F<X>, // The Traversable type (Vec, Option, etc.), wrapping the input(s): F<X>
           E: F<Y> + Functor2Effect<'a, Y, TR, TR, FX=E, FY=FR, FZ=FR>, // The effect returned from func, wrapping a concrete type Y, E<Y>
           TR: F<Y>, // The Traversable type to return, wrapping the effect's internal type, T<Y>
-          FR: F<TR> + ApplicativeEffect<'a> // The full return, the effect wrapping the traversable, E<T<Y>>
+          FR: F<TR> + ApplicativeEffect<'a, Pl> // The full return, the effect wrapping the traversable, E<T<Y>>
 {
     fn traverse(f: T,
                 func: impl 'a + Fn(X) -> E + Send + Sync) -> FR;
 }
 
-pub trait TraverseEffect<'a, T, E, TR, FR, X, Y>
+pub trait TraverseEffect<'a, T, E, TR, FR, X, Y, Pl>
     where
         T: F<X>,
         E: F<Y>+ Functor2Effect<'a, Y, TR, TR, FX=E, FY=FR, FZ=FR>,
         TR: F<Y>,
-        FR: F<TR> + ApplicativeEffect<'a> {
-    type Fct: Traverse<'a, T, E, TR, FR, X, Y> + Effect;
+        FR: F<TR> + ApplicativeEffect<'a, Pl> {
+    type Fct: Traverse<'a, T, E, TR, FR, X, Y, Pl> + Effect;
 }
 
-pub fn traverse<'a, T, E, TR, FR, X, Y>(f: T,
+pub fn traverse<'a, T, E, TR, FR, X, Y, Pl>(f: T,
                                         func: impl 'a + Fn(X) -> E + Send + Sync) -> FR
 where
-    T: F<X> + TraverseEffect<'a, T, E, TR, FR, X, Y>,
+    T: F<X> + TraverseEffect<'a, T, E, TR, FR, X, Y, Pl>,
     E: F<Y> + Functor2Effect<'a, Y, TR, TR, FX=E, FY=FR, FZ=FR>,
     TR: F<Y>,
-    FR: F<TR> + ApplicativeEffect<'a> {
+    FR: F<TR> + ApplicativeEffect<'a, Pl> {
     T::Fct::traverse(f, func)
 }

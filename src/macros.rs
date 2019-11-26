@@ -124,37 +124,44 @@ macro_rules! semigroup_effect {
 #[macro_export]
 macro_rules! applicative_effect {
     (0, $m:ident, $eff:ident) => (
-        impl<'a> ApplicativeEffect<'a> for $m {
+        impl<'a> ApplicativeEffect<'a, ()> for $m {
             type X = ();
+            type FMap = Empty;
             type Fct = $eff;
         }
     );
     (1, $m:ident, $eff:ident) => (
-        impl<'a, X> ApplicativeEffect<'a> for $m<X> {
+        impl<'a, X, Y> ApplicativeEffect<'a, Y> for $m<X> {
             type X = X;
+            type FMap = $m<ConcreteMapper<'a, X, Y>>;
             type Fct = $eff<X, (), ()>;
         }
     );
     (S, $m:ident, $eff:ident) => (
-        impl<'a, X> ApplicativeEffect<'a> for $m<'a, X>
+        impl<'a, X, Y> ApplicativeEffect<'a, Y> for $m<'a, X>
             where
-                X: 'a + Send + Sync {
+                X: 'a + Send + Sync,
+                Y: 'a + Send + Sync {
             type X = X;
+            type FMap = $m<'a, ConcreteMapper<'a, X, Y>>;
             type Fct = $eff<'a, X, (), ()>;
         }
     );
     (2, $m:ident, $eff:ident) => (
-        impl<'a, X, E: Debug> ApplicativeEffect<'a> for $m<X, E> {
+        impl<'a, X, Y, E: Debug> ApplicativeEffect<'a, Y> for $m<X, E> {
             type X = X;
+            type FMap = $m<ConcreteMapper<'a, X, Y>, E>;
             type Fct = $eff<E, X, (), ()>;
         }
     );
     (2S, $m:ident, $eff:ident) => (
-        impl<'a, X, E> ApplicativeEffect<'a> for $m<'a, X, E>
+        impl<'a, X, Y, E> ApplicativeEffect<'a, Y> for $m<'a, X, E>
             where
                 X: 'a + Send + Sync,
+                Y: 'a + Send + Sync,
                 E: 'a + Send + Sync + Debug {
             type X = X;
+            type FMap = $m<'a, ConcreteMapper<'a, X, Y>, E>;
             type Fct = $eff<'a, E, X, (), ()>;
         }
     );

@@ -42,7 +42,7 @@ use prelude::*;
 
 pub trait Effectful<'a, Inner, Err=(), Mapped=Inner, MapEffect: F<Mapped> = Self>:
     SyncTEffect<'a, X=Inner> +
-    ApplicativeEffect<'a, X=Inner> +
+    ApplicativeEffect<'a, Mapped, X=Inner> +
     FunctorEffect<'a, Inner, Mapped, FX=Self, FY=MapEffect> +
     MonadEffect<'a, Inner, Mapped, FX=Self, FY=MapEffect> +
     MonadErrorEffect<'a, Inner, E=Err> {}
@@ -50,7 +50,7 @@ pub trait Effectful<'a, Inner, Err=(), Mapped=Inner, MapEffect: F<Mapped> = Self
 impl<'a, Tp, X, Y, E, FY> Effectful<'a, X, E, Y, FY> for Tp
     where FY: F<Y>,
           Tp: SyncTEffect<'a, X=X> +
-              ApplicativeEffect<'a, X=X> +
+              ApplicativeEffect<'a, Y, X=X> +
               FunctorEffect<'a, X, Y, FX=Tp, FY=FY> +
               MonadEffect<'a, X, Y, FX=Tp, FY=FY> +
               MonadErrorEffect<'a, X, E=E> {}
