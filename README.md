@@ -56,9 +56,9 @@ that is represented with `* -> * -> *` (and so on).
 A Rust `Result` has a kind of `* -> * -> *`.  It takes one type (*u32*) to make a *Result<u32, E>*, which has a 
 kind of `* -> *`.  It takes another type (String) to make a concrete *Result<u32, String>* with a kind `*` and ready 
 to take *Ok(2)*, which is a concrete value.  Chaining type together still doesn't affect this syntax.  An 
-*Option<List<X>>* is still `* -> *`, because it still needs a concrete type to make another concrete type (giving 
-it a *u32* makes a concrete *Option<List<u32>>*). In the end, Option still just needs one concrete type (represented 
-by `*`, such as *List<u32>*) to make it concrete.
+*Option<List&lt;X>>* is still `* -> *`, because it still needs a concrete type to make another concrete type (giving 
+it a *u32* makes a concrete *Option<List&lt;u32>>*). In the end, Option still just needs one concrete type (represented 
+by `*`, such as *List&lt;u32>*) to make it concrete.
 
 For example:
 ```text
