@@ -86,7 +86,10 @@ The next level of abstraction up takes us to a type which takes a type construct
 however Scala can define them with the [\_] generic syntax.  Defining a Foo[F[\_]] is to state that this type 
 "Foo" must take a type constructor (which itself takes a disregarded concrete type), and that the exact type
 constructor used isn't too important as long as it can fill the shape required (i.e. trait bounds, if any).
-Trying to instantiate `Foo[Int]` plum won't work, because `Int` isn't a type constructor.
+Trying to instantiate `Foo[Int]` won't work, because `Int` isn't a type constructor.
+
+Higher-kinded types have a "kind" of `(* -> *) -> *`.  The `(* -> *)` part indicates the first type constructor which,
+when provided, will collapse the kind to a `* -> *`, which has already been seen above.
 
 
 For example:
@@ -157,7 +160,7 @@ For *Result<O, E>* that means providing one of the types, usually by fixing the 
 *Result<O, String>* fits the shape, as does a *Result<O, u32>* or *Result<O, ()>*.  A *Result<String, E>* also
 fits the shape, but in general most of these mathematical typeclasses are "positive-biased", meaning they lean 
 towards `Some(X)` and `Ok(X)` values when it comes to operations (for example, mapping usually works by operating on
-the positive value and leaves an error or missing value alone, as int he case of *Result* and *Option*; Scala is
+the positive value and leaves an error or missing value alone, as in the case of *Result* and *Option*; Scala is
 the same when it comes to *Either*).  For this reason, usually the *Result*'s error type is fixed in place, and 
 the operations performed on the `Ok()` value.    
     
@@ -598,7 +601,7 @@ we would use it.  Given some function with generic types which require a Functor
 and the other using type inference through a `FunctorEffect`):
 
 ```rust
-    fn usage<'a, T: Functor<'a, X, String>, X: Debug>(_ev: T, input: T::FX) -> T::FY {
+    fn usage<'a, T: Functor<'a, X=X, Y=String>, X: Debug>(_ev: T, input: T::FX) -> T::FY {
         T::fmap(input, |x| format!("{:?}", x))
     }
     fn usage_inferred<'a, X, Y, FX: F<X>, FY: F<Y>>(_ev: T, input: T::FX) -> T::FY 
@@ -634,7 +637,7 @@ In Scala, with Cats, implementing `Monad`, for example, on an object like `Eithe
 when writing a function which takes a `Monad`, a trait bound must be used:
 
 ```scala
-def foo[X: Monad](x: X): Y = ??
+def foo[X <: Monad](x: X): Y = ??
 ``` 
 
 This will actually lead to many problems in more complex situations, where the program will just not compile.
