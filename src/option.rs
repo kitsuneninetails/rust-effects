@@ -45,6 +45,7 @@ impl<X> F<X> for Option<X> {}
 semigroup_effect! { 1, Option, OptionEffect }
 monoid_effect! { 1, Option, OptionEffect }
 applicative_effect! { 1, Option, OptionEffect }
+applicativeapply_effect! { 1, Option, OptionEffect }
 functor_effect! { 1, Option, OptionEffect }
 functor2_effect! { 1, Option, OptionEffect }
 monad_effect! { 1, Option, OptionEffect }
@@ -58,7 +59,7 @@ pub struct OptionEffect<X=(), Y=(), Z=()> {
     _c: PhantomData<Z>
 }
 impl<X, Y, Z> OptionEffect<X, Y, Z> {
-    pub fn apply(_: Z) -> Self {
+    pub fn new(_: Z) -> Self {
         OptionEffect {
             _a: PhantomData,
             _b: PhantomData,
@@ -69,7 +70,7 @@ impl<X, Y, Z> OptionEffect<X, Y, Z> {
 
 #[macro_export]
 macro_rules! option_monad {
-    () => (OptionEffect::apply(()))
+    () => (OptionEffect::new(()))
 }
 
 impl<X, Y, Z> Effect for OptionEffect<X, Y, Z> {}
@@ -121,6 +122,15 @@ impl<'a, X, Y, Z> Functor<'a> for OptionEffect<X, Y, Z> {
 impl<'a, X, Y, Z> Applicative<'a> for OptionEffect<X, Y, Z> {
     fn pure(x: X) -> Self::FX {
         Some(x)
+    }
+}
+
+impl<'a, X, Y, Z, M> ApplicativeApply<'a, M> for OptionEffect<X, Y, Z>
+    where
+        M: 'a + Fn(Self::X) -> Self::Y + Send + Sync {
+    type FMapper = Option<M>;
+    fn apply(func: Self::FMapper, x: Self::FX) -> Self::FY {
+        func.and_then(|f| x.map(|x_in| f(x_in)))
     }
 }
 
@@ -217,11 +227,32 @@ mod tests {
 
     #[test]
     fn test_applicative() {
-        let out = pure::<Option::<u32>>(3);
+        let out = pure::<Option::<_>>(3);
         assert_eq!(Some(3), out);
 
-        let out: Option<&str> = pure("test");
+        let out: Option<_> = pure("test");
         assert_eq!(Some("test"), out);
+    }
+
+    #[test]
+    fn test_apply() {
+        let input: Option<u32> = pure(3);
+        let out: Option<String> = apply(Some(|i| format!("{} beans", i)), input);
+        assert_eq!(Some("3 beans".to_string()), out);
+
+        let input: Option<_> = pure(3);
+        let input2: Option<_> = pure(4);
+        let func = pure(|i| { move |x| i + x });
+        let out2: Option<_> = apply(apply(func, input), input2);
+
+        assert_eq!(Some(7), out2);
+
+        let input: Option<i32> = empty();
+        let input2: Option<_> = pure(4);
+        let func = pure(|i| { move |x| i + x });
+        let out2: Option<_> = apply(apply(func, input), input2);
+
+        assert_eq!(None, out2);
     }
 
     #[test]

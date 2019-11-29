@@ -43,7 +43,7 @@ pub struct ConcreteFuture<'a, X> {
     pub inner: BoxFuture<'a, X>
 }
 
-    impl<'a, X> ConcreteFuture<'a, X> {
+impl<'a, X> ConcreteFuture<'a, X> {
     pub fn new<F: 'a + Future<Output=X> + Send>(f: F) -> Self {
         ConcreteFuture {
             inner: f.boxed()
@@ -84,7 +84,7 @@ pub struct FutureEffect<'a, X=(), Y=(), Z=()> {
 }
 
 impl<'a, X, Y, Z> FutureEffect<'a, X, Y, Z> {
-    pub fn apply(_: Z) -> Self {
+    pub fn new(_: Z) -> Self {
         FutureEffect {
             _p: PhantomData,
             _a: PhantomData,
@@ -108,7 +108,7 @@ impl<'a, X, Y, Z> FutureEffect<'a, X, Y, Z> {
 
 #[macro_export]
 macro_rules! future_monad {
-    () => (FutureEffect::apply(()))
+    () => (FutureEffect::new(()))
 }
 
 impl<'a, X, Y, Z> Effect for FutureEffect<'a, X, Y, Z> {}
@@ -161,6 +161,17 @@ impl<'a, X, Y, Z> Functor<'a> for FutureEffect<'a, X, Y, Z>
 impl<'a, X: 'a + Send + Sync, Y: 'a + Send + Sync, Z> Applicative<'a> for FutureEffect<'a, X, Y, Z> {
     fn pure(x: X) -> Self::FX {
         ConcreteFuture::new(ready(x))
+    }
+}
+
+impl<'a, X, Y, Z, M> ApplicativeApply<'a, M> for FutureEffect<'a, X, Y, Z>
+    where
+        X: 'a + Send + Sync,
+        Y: 'a + Send + Sync,
+        M: 'a + Fn(Self::X) -> Self::Y + Send + Sync {
+    type FMapper = ConcreteFuture<'a, M>;
+    fn apply(func: Self::FMapper, x: Self::FX) -> Self::FY {
+        ConcreteFuture::new(func.map(move |f| x.map(move |x_in| f(x_in))).flatten())
     }
 }
 

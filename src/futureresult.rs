@@ -63,6 +63,7 @@ impl<'a, E, X> F<X> for ConcreteFutureResult<'a, X, E> {}
 semigroup_effect! { 2S, ConcreteFutureResult, FutureResultEffect }
 monoid_effect! { 2S, ConcreteFutureResult, FutureResultEffect }
 applicative_effect! { 2S, ConcreteFutureResult, FutureResultEffect }
+applicativeapply_effect! { 2S, ConcreteFutureResult, FutureResultEffect }
 functor_effect! { 2S, ConcreteFutureResult, FutureResultEffect }
 functor2_effect! { 2S, ConcreteFutureResult, FutureResultEffect }
 monad_effect! { 2S, ConcreteFutureResult, FutureResultEffect }
@@ -88,7 +89,7 @@ pub struct FutureResultEffect<'a, E=(), X=(), Y=(), Z=()> {
 }
 
 impl<'a, E, X, Y, Z> FutureResultEffect<'a, E, X, Y, Z> {
-    pub fn apply(_: Z) -> Self {
+    pub fn new(_: Z) -> Self {
         FutureResultEffect {
             _p: PhantomData,
             _a: PhantomData,
@@ -122,7 +123,7 @@ impl<'a, E, X, Y, Z> FutureResultEffect<'a, E, X, Y, Z> {
 
 #[macro_export]
 macro_rules! future_result_monad {
-    () => (FutureResultEffect::apply(()))
+    () => (FutureResultEffect::new(()))
 }
 
 impl<'a, E, X, Y, Z> Effect for FutureResultEffect<'a, E, X, Y, Z> {}
@@ -184,6 +185,18 @@ impl<'a, X, Y, Z, E> Applicative<'a> for FutureResultEffect<'a, E, X, Y, Z>
         E: 'a + Send + Sync + Debug {
     fn pure(x: X) -> Self::FX {
         ConcreteFutureResult::new(ready(Ok(x)))
+    }
+}
+
+impl<'a, E, X, Y, Z, M> ApplicativeApply<'a, M> for FutureResultEffect<'a, E, X, Y, Z>
+    where
+        X: 'a + Send + Sync,
+        Y: 'a + Send + Sync,
+        E: 'a + Send + Sync + Debug,
+        M: 'a + Fn(Self::X) -> Self::Y + Send + Sync {
+    type FMapper = ConcreteFutureResult<'a, M, E>;
+    fn apply(func: Self::FMapper, x: Self::FX) -> Self::FY {
+        ConcreteFutureResult::new(x.map(move |x_fut| func.map(|f_in| x_fut.and_then(|x_in| f_in.map(|f| f(x_in))))).flatten())
     }
 }
 
@@ -325,6 +338,37 @@ mod tests {
             assert_eq!(f.await, Ok(3));
             let f: ConcreteFutureResult<Result<&str, ()>, ()> = pure(Ok("test"));
             assert_eq!(f.await, Ok(Ok("test")));
+        });
+    }
+
+    #[test]
+    fn test_apply() {
+        block_on(async {
+            let f: ConcreteFutureResult<_, ()> = pure(3u32);
+            let func: ConcreteFutureResult<_, ()> = pure(move |x| format!("{} strings", x));
+            let f = apply(func, f);
+            assert_eq!(f.await, Ok("3 strings".to_string()));
+
+            let f1: ConcreteFutureResult<_, ()> = pure(3u32);
+            let f2: ConcreteFutureResult<_, ()> = pure(6);
+            let func: ConcreteFutureResult<_, ()> = pure(|x| move |y| x + y);
+            let f = apply(func, f1);
+            let f: ConcreteFutureResult<_, ()> = apply(f, f2);
+            assert_eq!(f.await, Ok(9));
+
+            let f1: ConcreteFutureResult<i32, ()> = empty();
+            let f2: ConcreteFutureResult<_, ()> = pure(6);
+            let func: ConcreteFutureResult<_, ()> = pure(|x| move |y| x + y);
+            let f = apply(func, f1);
+            let f: ConcreteFutureResult<_, ()> = apply(f, f2);
+            assert_eq!(f.await, Ok(6));
+
+            let f1: ConcreteFutureResult<i32, ()> = raise_error(());
+            let f2: ConcreteFutureResult<_, ()> = pure(6);
+            let func: ConcreteFutureResult<_, ()> = pure(|x| move |y| x + y);
+            let f = apply(func, f1);
+            let f: ConcreteFutureResult<_, ()> = apply(f, f2);
+            assert_eq!(f.await, Err(()));
         });
     }
 

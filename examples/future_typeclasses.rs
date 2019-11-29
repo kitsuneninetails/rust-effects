@@ -62,11 +62,6 @@ fn call_db_good(a: u32) -> Result<TestData, String> {
     })
 }
 
-fn call_db_bad(_a: u32) -> Result<TestData, String> {
-    long_running_service();
-    Err("Server is down".to_string())
-}
-
 fn call_netcall_good(a: u32) -> Result<String, String> {
     long_running_service();
     let d = TestData {
@@ -85,7 +80,7 @@ fn main() {
         println!("Using 'pure' on a function that takes a while will execute the function right \
                    away, as 'pure' for Future will use 'ready', which evaluates the value and \
                    prepares a Future just for that value (unlike 'lazy')");
-        let f1: ConcreteFuture<Result<TestData, String>> = pure(call_db_good(10));
+        let _: ConcreteFuture<Result<TestData, String>> = pure(call_db_good(10));
         println!("The future is now prepared, but we already had to wait (we haven't called 'await' \
                   yet!), so instead let's use a function that creates a chain starting with a pure \
                   on a real, concrete value before chaining a flat_map to the functions which take \

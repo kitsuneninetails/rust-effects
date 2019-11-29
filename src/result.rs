@@ -45,6 +45,7 @@ impl<X, E: Debug> F<X> for Result<X, E> {}
 semigroup_effect! { 2, Result, ResultEffect }
 monoid_effect! { 2, Result, ResultEffect }
 applicative_effect! { 2, Result, ResultEffect }
+applicativeapply_effect! { 2, Result, ResultEffect }
 functor_effect! { 2, Result, ResultEffect }
 functor2_effect! { 2, Result, ResultEffect }
 monad_effect! { 2, Result, ResultEffect }
@@ -60,7 +61,7 @@ pub struct ResultEffect<E: Debug, X=(), Y=(), Z=()> {
 }
 
 impl<E: Debug, X, Y, Z> ResultEffect<E, X, Y, Z> {
-    pub fn apply(_: Z) -> Self {
+    pub fn new(_: Z) -> Self {
         ResultEffect {
             _a: PhantomData,
             _b: PhantomData,
@@ -80,7 +81,7 @@ impl<E: Debug, X, Y, Z> ResultEffect<E, X, Y, Z> {
 
 #[macro_export]
 macro_rules! result_monad {
-    () => (ResultEffect::apply(()))
+    () => (ResultEffect::new(()))
 }
 
 impl<E: Debug, X, Y, Z> Effect for ResultEffect<E, X, Y, Z>{}
@@ -123,6 +124,15 @@ impl<'a, E: Debug, X, Y, Z> Functor<'a> for ResultEffect<E, X, Y, Z> {
 impl<'a, E: Debug, X, Y, Z> Applicative<'a> for ResultEffect<E, X, Y, Z> {
     fn pure(x: X) -> Self::FX {
         Ok(x)
+    }
+}
+
+impl<'a, E: Debug, X, Y, Z, M> ApplicativeApply<'a, M> for ResultEffect<E, X, Y, Z>
+    where
+        M: 'a + Fn(Self::X) -> Self::Y + Send + Sync {
+    type FMapper = Result<M, E>;
+    fn apply(func: Self::FMapper, x: Self::FX) -> Self::FY {
+        x.and_then(|x_in| func.map(|f| f(x_in)))
     }
 }
 
@@ -226,6 +236,13 @@ mod tests {
 
         let out: Result<&str, ()> = pure("test");
         assert_eq!(Ok("test"), out);
+    }
+
+    #[test]
+    fn test_apply() {
+        let input: Result<u32, ()> = pure(3);
+        let out: Result<String, ()> = apply(Ok(|i| format!("{} beans", i)), input);
+        assert_eq!(Ok("3 beans".to_string()), out);
     }
 
     #[test]

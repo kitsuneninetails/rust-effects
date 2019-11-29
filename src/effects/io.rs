@@ -119,6 +119,7 @@ impl<'a, X, E> F<X> for IO<'a, X, E>
 semigroup_effect! { 2S, IO, IoEffect }
 monoid_effect! { 2S, IO, IoEffect }
 applicative_effect! { 2S, IO, IoEffect }
+applicativeapply_effect! { 2S, IO, IoEffect }
 functor_effect! { 2S, IO, IoEffect }
 functor2_effect! { 2S, IO, IoEffect }
 monad_effect! { 2S, IO, IoEffect }
@@ -242,6 +243,18 @@ impl<'a, E: Debug + Send + Sync, X, Y, Z> Applicative<'a> for IoEffect<'a, E, X,
     }
 }
 
+impl<'a, E, X, Y, Z, M> ApplicativeApply<'a, M> for IoEffect<'a, E, X, Y, Z>
+    where
+        X: 'a + Send + Sync,
+        Y: 'a + Send + Sync,
+        E: 'a + Send + Sync + Debug,
+        M: 'a + Fn(Self::X) -> Self::Y + Send + Sync {
+    type FMapper = IO<'a, M, E>;
+    fn apply(func: Self::FMapper, x: Self::FX) -> Self::FY {
+        IO::new(FutureResultEffect::<E, X, Y, Z>::apply(func.fut, x.fut))
+    }
+}
+
 impl<'a, E: Debug + Send + Sync, X, Y, Z> Functor2<'a> for IoEffect<'a, E, X, Y, Z>
     where
         X: 'a + Send + Sync,
@@ -355,6 +368,28 @@ mod tests {
             4
         });
         assert_eq!(4, t.run_sync());
+    }
+
+    #[test]
+    fn test_apply() {
+        let t: IO<i32, ()> = pure(2);
+        let func: IO<_, ()> = pure(move |x| x + 4);
+        let io: IO<_, ()> = apply(func, t);
+        assert_eq!(Ok(6), attempt(io));
+
+        let t1: IO<i32, ()> = pure(2);
+        let t2: IO<i32, ()> = pure(4);
+        let func: IO<_, ()> = pure(|y| move |x| x + y);
+        let io: IO<_, ()> = apply(func, t1);
+        let io: IO<_, ()> = apply(io, t2);
+        assert_eq!(Ok(6), attempt(io));
+
+        let t1: IO<i32, ()> = raise_error(());
+        let t2: IO<i32, ()> = pure(4);
+        let func: IO<_, ()> = pure(|y| move |x| x + y);
+        let io: IO<_, ()> = apply(func, t1);
+        let io: IO<_, ()> = apply(io, t2);
+        assert_eq!(Err(()), attempt(io));
     }
 
     #[test]

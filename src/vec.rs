@@ -53,7 +53,7 @@ pub struct VecEffect<X=(), Y=(), Z=()> {
 }
 
 impl<X, Y, Z> VecEffect<X, Y, Z> {
-    pub fn apply(_: Z) -> Self {
+    pub fn new(_: Z) -> Self {
         VecEffect {
             _a: PhantomData,
             _b: PhantomData,
@@ -64,7 +64,7 @@ impl<X, Y, Z> VecEffect<X, Y, Z> {
 
 #[macro_export]
 macro_rules! vec_monad {
-    () => (VecEffect::apply(()))
+    () => (VecEffect::new(()))
 }
 
 impl<X, Y, Z> Effect for VecEffect<X, Y, Z> {}
@@ -96,6 +96,15 @@ impl<'a, X, Y, Z> Functor<'a> for VecEffect<X, Y, Z> {
 impl<'a, X, Y, Z> Applicative<'a> for VecEffect<X, Y, Z> {
     fn pure(x: X) -> Self::FX {
         vec![x]
+    }
+}
+
+impl<'a, X, Y, Z, M> ApplicativeApply<'a, M> for VecEffect<X, Y, Z>
+    where
+        M: 'a + Fn(Self::X) -> Self::Y + Send + Sync {
+    type FMapper = Vec<M>;
+    fn apply(func: Self::FMapper, x: Self::FX) -> Self::FY {
+        vec![]
     }
 }
 

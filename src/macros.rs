@@ -161,6 +161,65 @@ macro_rules! applicative_effect {
 }
 
 #[macro_export]
+macro_rules! applicativeapply_effect {
+    (0, $m:ident, $eff:ident) => (
+        impl<'a, M> ApplicativeApplyEffect<'a, M, (), ()> for $m
+            where
+                M: 'a + Fn(()) -> () + Send + Sync {
+            type FM = $m;
+            type FX = $m;
+            type FY = $m;
+            type Fct = $eff;
+        }
+    );
+    (1, $m:ident, $eff:ident) => (
+        impl<'a, M, X, Y> ApplicativeApplyEffect<'a, M, X, Y> for $m<X>
+            where
+                M: 'a + Fn(X) -> Y + Send + Sync {
+            type FM = $m<M>;
+            type FX = $m<X>;
+            type FY = $m<Y>;
+            type Fct = $eff<X, Y, ()>;
+        }
+    );
+    (S, $m:ident, $eff:ident) => (
+        impl<'a, M, X, Y> ApplicativeApplyEffect<'a, M, X, Y> for $m<'a, X>
+            where
+                X: 'a + Send + Sync,
+                Y: 'a + Send + Sync,
+                M: 'a + Fn(X) -> Y + Send + Sync {
+            type FM = $m<'a, M>;
+            type FX = $m<'a, X>;
+            type FY = $m<'a, Y>;
+            type Fct = $eff<'a, X, Y, ()>;
+        }
+    );
+    (2, $m:ident, $eff:ident) => (
+        impl<'a, M, X, Y, E: Debug> ApplicativeApplyEffect<'a, M, X, Y> for $m<X, E>
+            where
+                M: 'a + Fn(X) -> Y + Send + Sync {
+            type FM = $m<M, E>;
+            type FX = $m<X, E>;
+            type FY = $m<Y, E>;
+            type Fct = $eff<E, X, Y, ()>;
+        }
+    );
+    (2S, $m:ident, $eff:ident) => (
+        impl<'a, M, E, X, Y> ApplicativeApplyEffect<'a, M, X, Y> for $m<'a, X, E>
+            where
+                X: 'a + Send + Sync,
+                Y: 'a + Send + Sync,
+                E: 'a + Send + Sync + Debug,
+                M: 'a + Fn(X) -> Y + Send + Sync {
+            type FM = $m<'a, M, E>;
+            type FX = $m<'a, X, E>;
+            type FY = $m<'a, Y, E>;
+            type Fct = $eff<'a, E, X, Y, ()>;
+        }
+    );
+}
+
+#[macro_export]
 macro_rules! functor_effect {
     (0, $m:ident, $eff:ident) => (
         impl<'a> FunctorEffect<'a, (), ()> for $m {

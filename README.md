@@ -604,11 +604,11 @@ and the other using type inference through a `FunctorEffect`):
     fn usage<'a, T: Functor<'a, X=X, Y=String>, X: Debug>(_ev: T, input: T::FX) -> T::FY {
         T::fmap(input, |x| format!("{:?}", x))
     }
-    fn usage_inferred<'a, X, Y, FX: F<X>, FY: F<Y>>(_ev: T, input: T::FX) -> T::FY 
+    fn usage_inferred<'a, X, Y, FX: F<X>, FY: F<Y>>(input: FX) -> FY 
         where
-            FX: F<X> + FunctorEffect<'a, X, Y, FX=FX, FY=FY> 
+            FX: FunctorEffect<'a, X, Y, FX=FX, FY=FY> 
     {
-        T::fmap(input, |x| format!("{:?}", x))
+        fmap(input, |x| format!("{:?}", x))
     }
 ```
 
@@ -622,7 +622,7 @@ We'd use it in a function like this:
         let out: Pair<String> = usage(pair_functor!(), Pair::new(1, 1));
 
         // Use our defined function which can infer based on the FunctorEffect
-        let out: Pair<String> = usage_inferred(Pair::new(2, 2), |x| format!("{:?}", x));
+        let out: Pair<String> = usage_inferred(Pair::new(2, 2));
    }
 ```
 
@@ -676,3 +676,42 @@ What's the `???`?  It's something that can take an Option (of any concrete type,
 a type which can then take that concrete type and fill it in to make a usable type. 
 
 ## Why is this Useful?
+
+## Examples
+
+### Basic_Typeclasses
+
+Show off how to use basic typeclasses, specifically Functor and Monad.
+
+### Typeclass_Power
+
+Show the power of typeclasses, how the same function can run generically and take two very different inputs,
+output two very different types (selected by the caller when the function is executed), but still
+act in the exact same manner on the data given. 
+
+With this, library implementors can implement functions specifically to perform a task but take a very generic 
+set of inputs and output a generic set of outputs without requiring complicated generics and trait bounding.
+
+### Future_Typeclasses
+
+Futures can also harness the typeclass system to set up "blueprints" of how to process an action at some point
+in the future.  This example shows both executing calls inline as well as setting up a future chain that can execute 
+at a given time.
+
+### Future_Traverse
+
+Often, a series of function calls with similar parameters and outputs must be called in sequence.  Rather than 
+chaining these together manually, and wait on each future one-by-one, a program writer could instead put all
+of these effectful (i.e. returning a type constructor like "Future" or "Result") functions
+
+### Io_Monad
+
+The accumulation of the ideas presented in the `rust_effects` library, adding in the IO monad, which handles 
+suspending Input/Output effects in a future while also handling error conditions in the IO itself (separate from
+the actual results and wrapped types).
+
+The IO monad is based on the Scala Cats library version (rather than the Haskell version), which acts basically like 
+a Future, but using suspended creation effects as a default, rather than greedily executing creation effects 
+as a Future (Futures will execute their effects upon creation with `pure`, and only create real future-based
+effects when using `flat_map`, etc., while IO can `suspend` effects from the start and only execute them when 
+`run_sync` or `attempt` is called).
