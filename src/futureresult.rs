@@ -1,32 +1,67 @@
 /// Future (Result-aware) Typeclass Behaviors
 ///
+/// The Future type is a `Result` which allows for error types to be propagated, and for
+/// `MonadError` to be implemented.
+///
 /// Note: Any type wrapped by Future must implement `Send` and `Sync` in order to be
 /// dispatched to the execution context.
-
+///
+/// Note: Most functions can return a different future type (Ready vs. Lazy vs. AndThen vs. Map,
+/// etc.).  They should all qualify as implementations of Future for the given type, however.
+/// For all rules below the "Future" type is a ConcreteFuture implementaiton, which wraps a
+/// `Future` trait object (but is needed for its `Sized` implementation).
+///
 /// Semigroup
-///     `combine(Future(X), Future(Y)) => Future(combine(X, Y))`
+///     `combine(Future(R1), Future(R2)) => Future(combine(R1, R2))`
+///     Note: R1 and R2 are results, so they combine as results would combine.
 /// Monoid
-///     `empty() => Future(T1::default())` // uses `ready` future
-///     Note: This returns a valid future of the default value of the future's type.
+///     `empty() => Future(Ok(X::empty()))`
+///     Note: This returns a valid future of the empty value of the future's type.  The type
+///     must have an associated Monoid.
 /// Applicative
-///     `pure(X) => Future(X)` // uses `ready` future
+///     `pure(X) => Future(Ok(X))` // uses `ready` future
 ///     Note: This is greedy and will perform any function given to come up with a value before
 ///     creating the future!
+/// ApplicativeApply
+///     `apply(Future(Ok(fn X -> X2)), Future(Ok(X))) => Future(Ok(fn(X))) => Future(Ok(X2))`
+///     `apply(Future(Ok(fn X -> X2)), Future(Err(E))) => Future(Err(E))`
+///     `apply(Future(Err(E)), Future(Ok(X))) => Future(Err(E))`
+///     `apply(Future(Err1(E1)), Future(Err(E2))) => Future(Err(E2))`
+///     Note: This is lazy and will perform the function when the future.`await` is called
 /// Functor
-///     `fmap(Future(X), fn T1 -> T2) => Future(fn(X))`
+///     `fmap(Future(Ok(X)), fn X1 -> X2) => Future(Ok(fn(X))) => Future(Ok(X2))`
+///     `fmap(Future(Err(E)), fn X1 -> X2) => Future(Err(E))`
 ///     Note: This is lazy and will perform the function when the future.`await` is called
 /// Functor2
-///     `fmap2(Future(X), Future(Y), fn T1 T2 -> T3) => Future(fn(X, Y))`
+///     `fmap2(Future(Ok(X)), Future(Ok(Y)), fn X, Y -> Z) => Future(fn(Ok(X, Y))) => Future(Ok(Z))`
+///     `fmap2(Future(Err(E)), Future(Ok(Y)), fn X, Y -> Z) => Future(fn(Err(E)))`
+///     `fmap2(Future(Ok(X)), Future(Err(E)), fn X, Y -> Z) => Future(fn(Err(E)))`
+///     `fmap2(Future(Err(E1)), Future(Err(E2)), fn X, Y -> Z) => Future(fn(Err(E)))`
 ///     Note: This is lazy and will perform the function when the future.`await` is called
 /// Monad
-///     `flat_map(Future(X), fn T1 -> Future<T2>) => Future(*fn(X))` if fn(X) returns Some(Y)
+///     `flat_map(Future(Ok(X)), fn X -> Future(Ok(Y))) => fn(X) => Future(Ok(Y))`
+///     `flat_map(Future(Err(E)), fn X -> Future(Ok(Y))) => Future(Err(E))`
+///     `flat_map(Future(Ok(X)), fn X -> Future(Err(E))) => Future(Err(E))`
+///     `flat_map(Future(Err(E1)), fn X -> Future(Err(E2))) => Future(Err(E1))`
 ///     Note: This is lazy and will perform the function when the future.`await` is called.
-///     Also, this can return a different future type (Ready vs. Lazy vs. AndThen vs. Map, etc.)
+/// MonadError
+///     `raise_error(E) => Future(Err(E))`
+///     `handle_error(Future(Ok(X1)), fn E -> Future(Ok(X2))) -> fn(E) => Future(Ok(X2))`
+///     `handle_error(Future(Ok(X1)), fn E -> Future(Err(E))) -> Future(Err(E))`
+///     `handle_error(Future(Err(E)), fn E -> Future(Ok(X2))) -> Future(Err(E))`
+///     `handle_error(Future(Err(E)), fn E -> Future(Err(E2))) -> Future(Err(E1))`
+///     `attempt(Future(Ok(X))) -> Ok(X)`
+///     `attempt(Future(Err(E))) -> Err(E)`
 /// Foldable
-///     `fold(Future(X), init, fn TI T1 -> TI) => Future(fn(init, X))`
-///     Note: To preserve the 'future-ness' of the result, it is essentially the same as a `fmap.`
+///     `fold(Future(Ok(X)), Y, fn Y, X -> Y2) => Future(Ok(fn(Y, X))) => Future(Ok(Y2))`
+///     `fold(Future(Err(E)), Y, fn Y, X -> Y2) => Future(Ok(Y))`
+///     Note: Y and Y2 are the same type, just possibly two different values. To preserve the
+///     'future-ness' of the result, it is essentially the same as a `fmap.`
 /// Productable -
-///     `product(Future(X), Future(Y)) => Future((X, Y))`
+///     `product(Future(Ok(X)), Future(Ok(Y))) => Future(Ok(X, Y))`
+///     `product(Future(Err(E)), Future(Ok(Y))) => Future(Err(E))`
+///     `product(Future(Ok(X)), Future(Err(E)))) => Future(Err(E))`
+///     `product(Future(Err(E1)), Future(Err(E2))) => Future(Err(E1))`
 /// Traverse
 ///     `Not implemented`
 use super::prelude::*;
@@ -182,6 +217,7 @@ impl<'a, X, Y, Z, E> Applicative<'a> for FutureResultEffect<'a, E, X, Y, Z>
     where
         X: 'a + Send + Sync,
         Y: 'a + Send + Sync,
+        Z: 'a + Send + Sync,
         E: 'a + Send + Sync + Debug {
     fn pure(x: X) -> Self::FX {
         ConcreteFutureResult::new(ready(Ok(x)))
@@ -192,6 +228,7 @@ impl<'a, E, X, Y, Z, M> ApplicativeApply<'a, M> for FutureResultEffect<'a, E, X,
     where
         X: 'a + Send + Sync,
         Y: 'a + Send + Sync,
+        Z: 'a + Send + Sync,
         E: 'a + Send + Sync + Debug,
         M: 'a + Fn(Self::X) -> Self::Y + Send + Sync {
     type FMapper = ConcreteFutureResult<'a, M, E>;
@@ -221,6 +258,7 @@ impl<'a, E, X, Y, Z> Monad<'a> for FutureResultEffect<'a, E, X, Y, Z>
     where
         X: 'a + Send + Sync,
         Y: 'a + Send + Sync,
+        Z: 'a + Send + Sync,
         E: 'a + Send + Sync + Debug {
     fn flat_map(f: Self::FX, func: impl 'a + Fn(Self::X) -> Self::FY + Send + Sync) -> Self::FY {
         let res = ConcreteFutureResult::new(f.then(move |f_fut| match f_fut {
@@ -235,11 +273,12 @@ impl<'a, E, X, Y, Z> Foldable<'a> for FutureResultEffect<'a, E, X, Y, Z>
     where
         X: 'a + Send + Sync,
         Y: 'a + Send + Sync,
+        Z: 'a + Send + Sync,
         E: 'a + Send + Sync + Debug {
-    type Z = ConcreteFutureResult<'a, Y, E>;
+    type Y2 = ConcreteFutureResult<'a, Y, E>;
     fn fold(f: Self::FX,
             init: Self::Y,
-            func: impl 'a + Fn(Self::Y, Self::X) -> Self::Y + Send + Sync) -> Self::Z {
+            func: impl 'a + Fn(Self::Y, Self::X) -> Self::Y + Send + Sync) -> Self::Y2 {
         ConcreteFutureResult::new(f.map(move |f_fut| f_fut.map(|f_in| func(init, f_in))))
     }
 }
@@ -248,6 +287,7 @@ impl<'a, E, X, Y, Z> MonadError<'a> for FutureResultEffect<'a, E, X, Y, Z>
     where
         X: 'a + Send + Sync,
         Y: 'a + Send + Sync,
+        Z: 'a + Send + Sync,
         E: 'a + Send + Sync + Debug {
     type E=E;
     fn raise_error(err: Self::E) -> Self::FX {
@@ -270,36 +310,31 @@ impl<'a, E, X, Y, Z> MonadError<'a> for FutureResultEffect<'a, E, X, Y, Z>
 
 /// A specialized fold for vectors of Futures which generally have to map and chain the futures
 /// together into one big `Future`, rather than accumulate and combine on the fly.
-pub fn vfold<'a, X, Y, E>(f: Vec<ConcreteFutureResult<'a, X, E>>,
-                          init: Y,
-                          func: impl 'a + Fn(Y, X) -> Y + Send + Sync + Copy) -> ConcreteFutureResult<'a, Y, E>
-    where
-        X: 'a + Send + Sync,
-        Y: 'a + Send + Sync,
-        E: 'a + Send + Sync + Debug {
-    VecEffect::<ConcreteFutureResult<X, E>, ConcreteFutureResult<Y, E>>::fold(
-        f,
-        FutureResultEffect::<'a, E, Y>::pure(init),
-        |a, i| ConcreteFutureResult::new(
-            a.then(
-                move|a_fut| i.map(
-                    move |i_fut| a_fut.and_then(|a_in| i_fut.map(|i_in| func(a_in, i_in)))
-                )
-            )
-        )
-    )
-}
+//pub fn vfold<'a, X, Y, E>(f: Vec<ConcreteFutureResult<'a, X, E>>,
+//                          init: Y,
+//                          func: impl 'a + Fn(Y, X) -> Y + Send + Sync + Copy) -> ConcreteFutureResult<'a, Y, E>
+//    where
+//        X: 'a + Send + Sync,
+//        Y: 'a + Send + Sync,
+//        E: 'a + Send + Sync + Debug {
+//    VecEffect::<ConcreteFutureResult<X, E>, ConcreteFutureResult<Y, E>>::fold(
+//        f,
+//        FutureResultEffect::<'a, E, Y>::pure(init),
+//        |a, i| ConcreteFutureResult::new(
+//            a.then(
+//                move|a_fut| i.map(
+//                    move |i_fut| a_fut.and_then(|a_in| i_fut.map(|i_in| func(a_in, i_in)))
+//                )
+//            )
+//        )
+//    )
+//}
 
-impl<'a, X: Clone, Y: Clone, Z, E> Productable<'a> for FutureResultEffect<'a, E, X, Y, Z>
+impl<'a, E, X, Y> Productable<'a> for FutureResultEffect<'a, E, X, Y, (X, Y)>
     where
+        E: 'a + Debug + Send + Sync,
         X: 'a + Send + Sync,
-        Y: 'a + Send + Sync,
-        E: 'a + Send + Sync + Debug {
-    type FXY = ConcreteFutureResult<'a, (X, Y), E>;
-    fn product(fa: Self::FX, fb: Self::FY) -> Self::FXY {
-        fmap2(fa, fb, |a, b| (a.clone(), b.clone()))
-    }
-}
+        Y: 'a + Send + Sync {}
 
 #[cfg(test)]
 mod tests {
@@ -405,17 +440,17 @@ mod tests {
             assert_eq!(fr.await, Ok(13));
         });
 
-        block_on(async {
-            let fs: Vec<ConcreteFutureResult<u32, ()>> = vec![
-                pure(3),
-                ConcreteFutureResult::new(ready(Ok(10u32))),
-                ConcreteFutureResult::new(lazy(|_| Ok(4u32)))
-            ];
-            let fr = vfold(fs,
-                           0u32,
-                           |y, x| y + x);
-            assert_eq!(fr.await, Ok(17));
-        });
+//        block_on(async {
+//            let fs: Vec<ConcreteFutureResult<u32, ()>> = vec![
+//                pure(3),
+//                ConcreteFutureResult::new(ready(Ok(10u32))),
+//                ConcreteFutureResult::new(lazy(|_| Ok(4u32)))
+//            ];
+//            let fr = vfold(fs,
+//                           0u32,
+//                           |y, x| y + x);
+//            assert_eq!(fr.await, Ok(17));
+//        });
 
         block_on(async {
             let f: ConcreteFutureResult<u32, &'static str> = pure(3u32);
@@ -471,24 +506,24 @@ mod tests {
         });
     }
 
-    #[test]
-    fn test_traverse() {
-        block_on(async {
-            let fs: Vec<u32> = vec![3, 10, 4];
-            let fr = traverse(fs,
-                              |x| ConcreteFutureResult::<u32, ()>::new(ready(Ok(x + 5))));
-            assert_eq!(fr.await, Ok(vec![8, 15, 9]));
-        });
-
-        block_on(async {
-            let fs: Vec<u32> = vec![3, 10, 4];
-            let fr = traverse(fs,
-                              |x| ConcreteFutureResult::<u32, ()>::new(match x % 2 {
-                                  0 => ready(Ok(x + 5)),
-                                  1 => ready(Err(())),
-                                  _ => unreachable!()
-                              }));
-            assert_eq!(fr.await, Err(()));
-        });
-    }
+//    #[test]
+//    fn test_traverse() {
+//        block_on(async {
+//            let fs: Vec<u32> = vec![3, 10, 4];
+//            let fr = traverse(fs,
+//                              |x| ConcreteFutureResult::<u32, ()>::new(ready(Ok(x + 5))));
+//            assert_eq!(fr.await, Ok(vec![8, 15, 9]));
+//        });
+//
+//        block_on(async {
+//            let fs: Vec<u32> = vec![3, 10, 4];
+//            let fr = traverse(fs,
+//                              |x| ConcreteFutureResult::<u32, ()>::new(match x % 2 {
+//                                  0 => ready(Ok(x + 5)),
+//                                  1 => ready(Err(())),
+//                                  _ => unreachable!()
+//                              }));
+//            assert_eq!(fr.await, Err(()));
+//        });
+//    }
 }

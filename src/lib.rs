@@ -100,7 +100,7 @@ impl<'a> Applicative<'a> for NilEffect {
 }
 
 impl<'a> Functor2<'a> for NilEffect {
-    type Z = ();
+    type Z = ((), ());
     type FZ = Empty;
     fn fmap2(_: Self::FX,
              _: Self::FY,
@@ -116,8 +116,8 @@ impl<'a> Monad<'a> for NilEffect {
 }
 
 impl<'a> Foldable<'a> for NilEffect {
-    type Z = ();
-    fn fold(_: Self::FX, init: Self::Y, _: impl 'a + Fn(Self::Y, Self::X) -> () + Send + Sync) -> Self::Z {
+    type Y2 = ();
+    fn fold(_: Self::FX, init: Self::Y, _: impl 'a + Fn(Self::Y, Self::X) -> () + Send + Sync) -> Self::Y2 {
         init
     }
 }
@@ -137,12 +137,7 @@ impl<'a> MonadError<'a> for NilEffect {
     }
 }
 
-impl<'a> Productable<'a> for NilEffect {
-    type FXY = Empty;
-    fn product(_: Self::FX, _: Self::FY) -> Self::FXY {
-        Empty
-    }
-}
+impl<'a> Productable<'a> for NilEffect {}
 
 impl<'a> SyncT<'a> for NilEffect {
     fn suspend(_: impl 'a + Fn() -> Self::FX + Send + Sync) -> Self::FX {

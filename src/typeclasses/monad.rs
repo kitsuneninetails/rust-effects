@@ -28,28 +28,28 @@ pub fn flat_map<'a, FX, FY, X, Y>(f: FX, func: impl 'a + Fn(X) -> FY + Send + Sy
 /// the item in the iteration).  At the end, this accumulated value is returned.
 ///
 /// Typically, the result of a fold is the same type as the initial value, due to init and function
-/// both operating ont his value as the fold is accumulated.  However, a type `Z` is provided here
+/// both operating on this value as the fold is accumulated.  However, a type `Y2` is provided here
 /// to differentiate the final return from the accumulation function.  This allows types like
 /// `Future` to accumulate values inside, yet still return a `Future` for that accumulated value
 /// rather than blocking for the Future's completion.
 pub trait Foldable<'a>: Effect + Monad<'a> {
-    type Z;
+    type Y2;
     fn fold(f: Self::FX,
             init: Self::Y,
-            func: impl 'a + Fn(Self::Y, Self::X) -> Self::Y + Send + Sync) -> Self::Z;
+            func: impl 'a + Fn(Self::Y, Self::X) -> Self::Y + Send + Sync) -> Self::Y2;
 }
 
-pub trait FoldableEffect<'a, X, Y, Z>
-    where <<Self as FoldableEffect<'a, X, Y, Z>>::Fct as Functor<'a>>::FY: F<Y> {
+pub trait FoldableEffect<'a, X, Y, Y2>
+    where <<Self as FoldableEffect<'a, X, Y, Y2>>::Fct as Functor<'a>>::FY: F<Y> {
     type FX: F<X>;
-    type Fct: Foldable<'a, X=X, Y=Y, Z=Z, FX=Self::FX> + Effect;
+    type Fct: Foldable<'a, X=X, Y=Y, Y2=Y2, FX=Self::FX> + Effect;
 }
 
-pub fn fold<'a, FX, X, Y, Z>(f: FX,
-                             init: Y,
-                             func: impl 'a + Fn(Y, X) -> Y + Send + Sync) -> Z
-    where FX: F<X> + FoldableEffect<'a, X, Y, Z, FX=FX>,
-          <<FX as FoldableEffect<'a, X, Y, Z>>::Fct as Functor<'a>>::FY: F<Y>{
+pub fn fold<'a, FX, X, Y, Y2>(f: FX,
+                              init: Y,
+                              func: impl 'a + Fn(Y, X) -> Y + Send + Sync) -> Y2
+    where FX: F<X> + FoldableEffect<'a, X, Y, Y2, FX=FX>,
+          <<FX as FoldableEffect<'a, X, Y, Y2>>::Fct as Functor<'a>>::FY: F<Y>{
     FX::Fct::fold(f, init, func)
 }
 

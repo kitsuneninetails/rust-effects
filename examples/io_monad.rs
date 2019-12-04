@@ -5,7 +5,7 @@ use rust_effects::io_monad;
 use std::io::Error as IOError;
 
 fn ask_for_file<'a,
-    S: SyncT<'a, FX=O, X=String, E=IOError>,
+    S: SyncT<'a, FX=O, X=String, Y=String, FY=O, E=IOError>,
     O: F<S::X>
 >(_: S) -> O {
     S::suspend(|| {
@@ -42,7 +42,7 @@ fn open_and_read<'a,
 
 fn printout<'a,
     M: MonadError<'a, X=String, FX=I, Y=(), FY=O>,
-    S: SyncT<'a, X=M::Y, FX=M::FY>,
+    S: SyncT<'a, X=M::Y, FX=M::FY, Y=M::Y, FY=M::FY>,
     I: F<M::X>,
     O: F<M::Y>
 >(_: S, _: M, input: I) -> O {

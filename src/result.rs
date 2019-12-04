@@ -2,34 +2,41 @@
 ///
 /// Semigroup
 ///     `combine(Ok(X), Ok(Y)) => Ok(combine(X, Y))`
-///     `combine(Ok(X), Err(E2)) => Err(E2)`
-///     `combine(Err(E1), Ok(Y)) => Err(E1)`
+///     `combine(Ok(X), Err(E)) => Err(E)`
+///     `combine(Err(E), Ok(Y)) => Err(E)`
 ///     `combine(Err(E1), Err(E2)) => Err(E1)`
 /// Monoid
 ///     `empty() => Ok(X::empty())`
 /// Applicative
 ///     `pure(X) => Ok(X)`
+/// ApplicativeApply
+///     `fmap(Ok(fn X -> Y), Ok(X)) => Ok(fn(X)) => Ok(Y)`
+///     `fmap(Ok(fn X -> Y), Err(E)) => Err(E)`
+///     `fmap(Err(E), Ok(X)) => Err(E)`
+///     `fmap(Err(E1), Err(E2)) => Err(E2)`
 /// Functor
-///     `fmap(Ok(X), fn T1 -> T2) => Ok(fn(X))`
-///     `fmap(Err(E), fn T1 -> T2) => Err(E)`
+///     `fmap(Ok(X), fn X -> Y) => Ok(fn(X)) => Ok(Y)`
+///     `fmap(Err(E), fn X -> Y) => Err(E)`
 /// Functor2
-///     `fmap2(Ok(X), Ok(Y), fn T1 T2 -> T3) => Ok(fn(X, Y))`
-///     `fmap2(Ok(X), Err(E2), fn T1 T2 -> T3) => Err(E2)`
-///     `fmap2(Err(E1), Ok(Y), fn T1 T2 -> T3) => Err(E1)`
-///     `fmap2(Err(E1), Err(E2), fn T1 T2 -> T3) => Err(E1)`
+///     `fmap2(Ok(X), Ok(Y), fn X, Y -> Z) => Ok(fn(X, Y))`
+///     `fmap2(Ok(X), Err(E2), fn X, Y -> Z) => Err(E2)`
+///     `fmap2(Err(E1), Ok(Y), fn X, Y -> Z) => Err(E1)`
+///     `fmap2(Err(E1), Err(E2), fn X, Y -> Z) => Err(E1)`
 /// Monad
-///     `flat_map(Ok(X), fn T1 -> Option<T2>) => Ok(Y)` if fn(X) returns Ok(Y)
-///     `flat_map(Ok(X), fn T1 -> Option<T2>) => Err(E2)` if fn(X) returns Err(E2)
-///     `flat_map(Err(E), fn T1 -> Option<T2>) => Err(E)`
+///     `flat_map(Ok(X), fn X -> Ok(Y)) => fn(X) => Ok(Y)`
+///     `flat_map(Ok(X), fn X -> Err(E)) => fn(X) => Err(E)`
+///     `flat_map(Err(E), fn X -> Ok(Y)) => Err(E)`
+///     `flat_map(Err(E1), fn X -> Err(E)) => Err(E1)`
 /// Foldable
-///     `fold(Ok(X), init, fn TI T1 -> TI) => fn(init, X)`
-///     `fold(Err(E), init, fn TI T1 -> TI) => init`
+///     `fold(Ok(X), init, fn Y, X -> Y2) => fn(init, X) => Y2`
+///     `fold(Err(E), init, fn Y, X -> Y2) => init => Y`
+///     Note: Y and Y2 are the same type, just possibly two different values.
 /// MonadError
 ///     `raise_error(E) => Err(E)`
 /// Productable -
 ///     `product(Ok(X), Ok(Y)) => Ok((X, Y))`
-///     `product(Ok(X), Err(E2)) => Err(2E)`
-///     `product(Err(E1), Ok(Y)) => Err(E1)`
+///     `product(Ok(X), Err(E)) => Err(E)`
+///     `product(Err(E), Ok(Y)) => Err(E)`
 ///     `product(Err(E1), Err(E2)) => Err(E1)`
 /// Traverse
 ///     `Not implemented`
@@ -152,11 +159,11 @@ impl<'a, E: Debug, X, Y, Z> Monad<'a> for ResultEffect<E, X, Y, Z> {
     }
 }
 
-impl<'a, X, Y: Clone, Z, E: Debug> Foldable<'a> for ResultEffect<E, X, Y, Z> {
-    type Z = Y;
+impl<'a, X, Y, Z, E: Debug> Foldable<'a> for ResultEffect<E, X, Y, Z> {
+    type Y2 = Y;
     fn fold(f: Self::FX,
             init: Self::Y,
-            func: impl 'a + Fn(Self::Y, Self::X) -> Self::Y + Send + Sync) -> Self::Z {
+            func: impl 'a + Fn(Self::Y, Self::X) -> Self::Y + Send + Sync) -> Self::Y2 {
         match f {
             Ok(i) => func(init, i),
             Err(_e) => init
@@ -179,12 +186,7 @@ impl<'a, E: Debug, X, Y, Z> MonadError<'a> for ResultEffect<E, X, Y, Z> {
     }
 }
 
-impl<'a, X: Clone, Y: Clone, Z, E: Debug> Productable<'a> for ResultEffect<E, X, Y, Z> {
-    type FXY = Result<(X, Y), E>;
-    fn product(fa: Self::FX, fb: Self::FY) -> Self::FXY {
-        fmap2(fa, fb, |a, b| (a.clone(), b.clone()))
-    }
-}
+impl<'a, E: Debug, X, Y> Productable<'a> for ResultEffect<E, X, Y, (X, Y)> {}
 
 #[cfg(test)]
 mod tests {

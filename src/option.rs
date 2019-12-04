@@ -10,23 +10,36 @@
 ///     `empty() => None`
 /// Applicative
 ///     `pure(X) => Some(X)`
+/// ApplicativeApply
+///     `apply(Some(fn X -> X2), Some(X)) => Some(fn(X)) => Some(X2)`
+///     `apply(Some(fn X -> X2), None) => None`
+///     `apply(None, Some(X)) => None`
+///     `apply(None, None) => None`
 /// Functor
-///     `fmap(Some(X), fn T1 -> T2) => Some(fn(X))`
-///     `fmap(None, fn T1 -> T2) => None`
+///     `fmap(Some(X), fn X -> X2) => Some(fn(X)) => Some(X2)`
+///     `fmap(None, fn X -> X2) => None`
 /// Functor2
-///     `fmap2(Some(X), Some(Y), fn T1 T2 -> T3) => Some(fn(X, Y))`
-///     `fmap2(Some(X), None, fn T1 T2 -> T3) => None`
-///     `fmap2(None, Some(Y), fn T1 T2 -> T3) => None`
-///     `fmap2(None, None, fn T1 T2 -> T3) => None`
+///     `fmap2(Some(X), Some(Y), fn X, Y -> Z) => Some(fn(X, Y)) => Some(Z)`
+///     `fmap2(Some(X), None, fn X, Y -> Z) => None`
+///     `fmap2(None, Some(Y), fn X, Y -> Z) => None`
+///     `fmap2(None, None, fn X, Y -> Z) => None`
 /// Monad
-///     `flat_map(Some(X), fn T1 -> Option<T2>) => Some(Y)` if fn(X) returns Some(Y)
-///     `flat_map(Some(X), fn T1 -> Option<T2>) => None` if fn(X) returns None
-///     `flat_map(None, fn T1 -> Option<T2>) => None`
+///     `flat_map(Some(X), fn X -> Some(Y)) => fn(X) => Some(Y)`
+///     `flat_map(Some(X), fn X -> None) => None`
+///     `flat_map(None, fn X -> Some(Y)) => None`
+///     `flat_map(None, fn X -> None) => None`
 /// MonadError
 ///     `raise_error(E) => None`
+///     `handle_error(Some(X), fn E -> Some(X2)) => Some(X)`
+///     `handle_error(Some(X), fn E -> None) => Some(X)`
+///     `handle_error(None, fn E -> Some(X2)) => Some(X2)`
+///     `handle_error(None, fn E -> None) => None`
+///     `attempt(Some(X)) => Ok(X)`
+///     `attempt(None) => Err(())`
 /// Foldable
-///     `fold(Some(X), init, fn TI T1 -> TI) => fn(init, X)`
-///     `fold(None, init, fn TI T1 -> TI) => init`
+///     `fold(Some(X), init, fn Y, X -> Y2) => fn(Y, X) => Y2`
+///     `fold(None, init, fn Y, X -> Y2) => Y`
+///     Note: Y and Y2 are the same type, just possibly two different values.
 /// Productable -
 ///     `product(Some(X), Some(Y)) => Some((X, Y))`
 ///     `product(Some(X), None) => None`
@@ -150,9 +163,9 @@ impl<'a, X, Y, Z> Monad<'a> for OptionEffect<X, Y, Z> {
     }
 }
 
-impl<'a, X, Y: Clone, Z> Foldable<'a> for OptionEffect<X, Y, Z> {
-    type Z=Y;
-    fn fold(f: Self::FX, init: Self::Y, func: impl 'a + Fn(Self::Y, Self::X) -> Y + Send + Sync) -> Self::Z {
+impl<'a, X, Y, Z> Foldable<'a> for OptionEffect<X, Y, Z> {
+    type Y2=Y;
+    fn fold(f: Self::FX, init: Self::Y, func: impl 'a + Fn(Self::Y, Self::X) -> Y + Send + Sync) -> Self::Y2 {
         match f {
             Some(i) => func(init, i),
             None => init
@@ -175,12 +188,7 @@ impl<'a, X, Y, Z> MonadError<'a> for OptionEffect<X, Y, Z> {
     }
 }
 
-impl<'a, X: Clone, Y: Clone, Z> Productable<'a> for OptionEffect<X, Y, Z> {
-    type FXY = Option<(X, Y)>;
-    fn product(fa: Self::FX, fb: Self::FY) -> Self::FXY {
-        fmap2(fa, fb, |a, b| (a.clone(), b.clone()))
-    }
-}
+impl<'a, X, Y> Productable<'a> for OptionEffect<X, Y, (X, Y)> {}
 
 #[cfg(test)]
 mod tests {

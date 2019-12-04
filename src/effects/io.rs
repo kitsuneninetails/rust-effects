@@ -10,31 +10,59 @@
 /// Semigroup
 ///     `combine(IO(X), IO(Y)) => IO(combine(X, Y))`
 /// Monoid
-///     `empty() => IO(T1::default())` // uses `ready` Future
+///     `empty() => IO(Ok(X1::Empty))` // uses `ready` Future, X1 must have Monoid
 ///     Note: This returns a valid IO of the default value of the IO's type.
 /// Applicative
-///     `pure(X) => IO(X)` // uses `ready` Future
+///     `pure(X) => IO(Ok(X))` // uses `ready` Future
 ///     Note: This is greedy and will perform any function given to come up with a value before
 ///     creating the IO!
+/// ApplicativeApply
+///     `apply(IO(Ok(fn X -> Y)), IO(Ok(X))) => IO(Ok(fn(X))) => IO(Ok(Y))`
+///     `apply(IO(Ok(fn X -> Y)), IO(Err(E))) => IO(Err(E))`
+///     `apply(IO(Err(E)), IO(Ok(X))) => IO(Err(E))`
+///     `apply(IO(Err1(E1)), IO(Err2(E2))) => IO(Err1(E2))`
+///     Note: This is lazy and will perform the function when the IO.`await` is called
 /// Functor
-///     `fmap(IO(X), fn T1 -> T2) => IO(fn(X))`
+///     `fmap(IO(Ok(X)), fn X -> Y) => IO(Ok(fn(X))) => IO(Ok(Y))`
+///     `fmap(IO(Err(E)), fn X -> Y) => IO(Err(E))`
 ///     Note: This is lazy and will perform the function when the IO.`await` is called
 /// Functor2
-///     `fmap2(IO(X), IO(Y), fn T1 T2 -> T3) => IO(fn(X, Y))`
+///     `fmap2(IO(Ok(X)), IO(Ok(Y)), fn X, Y -> Z) => IO(Ok(fn(X, Y))) => IO(Ok(Y))`
+///     `fmap2(IO(Err(E)), IO(Ok(Y)), fn X, Y -> Z) => IO(Err(E))`
+///     `fmap2(IO(Ok(X)), IO(Err(E)), fn X, Y -> Z) => IO(Err(E))`
+///     `fmap2(IO(Err(E1)), IO(Err(E2)), fn X, Y -> Z) => IO(Err(E1))`
 ///     Note: This is lazy and will perform the function when the IO.`await` is called
 /// Monad
-///     `flat_map(IO(X), fn T1 -> IO<T2>) => IO(*fn(X))` if fn(X) returns Some(Y)
+///     `flat_map(IO(Ok(X)), fn X -> IO(Ok(Y)) => fn(X) => IO(Ok(Y))`
+///     `flat_map(IO(Err(E)), fn X -> IO(Ok(Y)) => fn(X) => IO(Err(E))`
+///     `flat_map(IO(Ok(X)), fn X -> IO(Err(E)) => fn(X) => IO(Err(E))`
+///     `flat_map(IO(Err(E1)), fn X -> IO(Err(E2))) => fn(X) => IO(Err(E1))`
 ///     Note: This is lazy and will perform the function when the IO.`await` is called.
 ///     Also, this can return a different IO type (Ready vs. Lazy vs. AndThen vs. Map, etc.)
+/// MonadError
+///     `raise_error(E) => IO(Err(E))`
+///     `handle_error(IO(Ok(X1)), fn E -> IO(Ok(X2))) -> fn(E) => IO(Ok(X2))`
+///     `handle_error(IO(Ok(X1)), fn E -> IO(Err(E))) -> IO(Err(E))`
+///     `handle_error(IO(Err(E)), fn E -> IO(Ok(X2))) -> IO(Err(E))`
+///     `handle_error(IO(Err(E)), fn E -> IO(Err(E2))) -> IO(Err(E1))`
+///     `attempt(IO(Ok(X))) -> Ok(X)`
+///     `attempt(IO(Err(E))) -> Err(E)`
 /// Foldable
-///     `fold(IO(X), init, fn TI T1 -> TI) => IO(fn(init, X))`
-///     Note: To preserve the 'IO-ness' of the result, it is essentially the same as a `fmap.`
+///     `fold(IO(Ok(X)), Y, fn Y, X -> Y2) => IO(Ok(fn(Y, X))) => IO(Ok(Y2))`
+///     `fold(IO(Err(E)), Y, fn Y, X -> Y2) => IO(Ok(Y))`
+///     Note: Y and Y2 are the same type, just possibly two different values.  To preserve the
+///    'IO-ness' of the result, it is essentially the same as a `fmap.`
 /// Productable -
-///     `product(IO(X), IO(Y)) => IO((X, Y))`
+///     `product(IO(Ok(X)), IO(Ok(Y))) => IO(Ok(X, Y))`
+///     `product(IO(Err(E)), IO(Ok(Y))) => IO(Err(E))`
+///     `product(IO(Ok(X)), IO(Err(E)))) => IO(Err(E))`
+///     `product(IO(Err(E1)), IO(Err(E2))) => IO(Err(E1))`
 /// Traverse
 ///     `Not implemented`
 /// SyncT
-///     `suspend(fn () -> T1) => IO(fn())`
+///     `suspend(fn () -> IO(Ok(X))) => IO(fn()) => IO(Ok(X))`
+///     `suspend(fn () -> IO(Err(E)) => IO(fn()) => IO(Err(E))`
+///     `delay(fn () -> X) => IO(Ok(fn())) => IO(Ok(X))`
 ///     Note: This is lazy and will perform the function when the IO.`await` is called.
 
 use crate::prelude::*;
@@ -124,8 +152,8 @@ functor_effect! { 2S, IO, IoEffect }
 functor2_effect! { 2S, IO, IoEffect }
 monad_effect! { 2S, IO, IoEffect }
 monaderror_effect! { 2S, IO, IoEffect }
-foldable_effect! { 2S, IO, IoEffect }
 productable_effect! { 2S, IO, IoEffect }
+foldable_effect! { 2S, IO, IoEffect }
 synct_effect! { 2S, IO, IoEffect }
 
 impl<'a, X, E> Future for IO<'a, X, E>
@@ -237,6 +265,7 @@ impl<'a, E: Debug + Send + Sync, X, Y, Z> Applicative<'a> for IoEffect<'a, E, X,
     where
         X: 'a + Send + Sync,
         Y: 'a + Send + Sync,
+        Z: 'a + Send + Sync,
         E: 'a + Send + Sync + Debug {
     fn pure(x: X) -> Self::FX {
         IO::new(FutureResultEffect::<E, X, Y, Z>::pure(x))
@@ -247,6 +276,7 @@ impl<'a, E, X, Y, Z, M> ApplicativeApply<'a, M> for IoEffect<'a, E, X, Y, Z>
     where
         X: 'a + Send + Sync,
         Y: 'a + Send + Sync,
+        Z: 'a + Send + Sync,
         E: 'a + Send + Sync + Debug,
         M: 'a + Fn(Self::X) -> Self::Y + Send + Sync {
     type FMapper = IO<'a, M, E>;
@@ -274,6 +304,7 @@ impl<'a, E: Debug + Send + Sync, X, Y, Z> Monad<'a> for IoEffect<'a, E, X, Y, Z>
     where
         X: 'a + Send + Sync,
         Y: 'a + Send + Sync,
+        Z: 'a + Send + Sync,
         E: 'a + Send + Sync + Debug {
     fn flat_map(f: Self::FX, func: impl 'a + Fn(Self::X) -> Self::FY + Send + Sync) -> Self::FY {
         IO::new(
@@ -291,11 +322,12 @@ impl<'a, E: Debug + Send + Sync, X, Y, Z> Foldable<'a> for IoEffect<'a, E, X, Y,
     where
         X: 'a + Send + Sync,
         Y: 'a + Send + Sync,
+        Z: 'a + Send + Sync,
         E: 'a + Send + Sync + Debug {
-    type Z = IO<'a, Y, E>;
+    type Y2 = IO<'a, Y, E>;
     fn fold(f: Self::FX,
             init: Self::Y,
-            func: impl 'a + Fn(Self::Y, Self::X) -> Self::Y + Send + Sync) -> Self::Z {
+            func: impl 'a + Fn(Self::Y, Self::X) -> Self::Y + Send + Sync) -> Self::Y2 {
         IO::new(FutureResultEffect::<E, X, Y, Z>::fold(f.fut, init, func))
     }
 }
@@ -304,6 +336,7 @@ impl<'a, E: Debug + Send + Sync, X, Y, Z> MonadError<'a> for IoEffect<'a, E, X, 
     where
         X: 'a + Send + Sync,
         Y: 'a + Send + Sync,
+        Z: 'a + Send + Sync,
         E: 'a + Send + Sync + Debug {
     type E=E;
     fn raise_error(err: Self::E) -> Self::FX {
@@ -329,21 +362,17 @@ impl<'a, E: Debug + Send + Sync, X, Y, Z> MonadError<'a> for IoEffect<'a, E, X, 
 
 }
 
-impl<'a, E: Debug + Send + Sync, X: Clone, Y: Clone, Z> Productable<'a> for IoEffect<'a, E, X, Y, Z>
+impl<'a, E, X, Y> Productable<'a> for IoEffect<'a, E, X, Y, (X, Y)>
+    where
+        E: 'a + Debug + Send + Sync,
+        X: 'a + Send + Sync,
+        Y: 'a + Send + Sync {}
+
+impl<'a, E, X, Y, Z> SyncT<'a> for IoEffect<'a, E, X, Y, Z>
     where
         X: 'a + Send + Sync,
         Y: 'a + Send + Sync,
-        E: 'a + Send + Sync + Debug {
-    type FXY = IO<'a, (X, Y), E>;
-    fn product(fa: Self::FX, fb: Self::FY) -> Self::FXY {
-        IO::new(FutureResultEffect::<E, X, Y, Z>::product(fa.fut, fb.fut))
-    }
-}
-
-
-impl<'a, E: Debug + Send + Sync, X, Z> SyncT<'a> for IoEffect<'a, E, X, X, Z>
-    where
-        X: 'a + Send + Sync,
+        Z: 'a + Send + Sync,
         E: 'a + Send + Sync + Debug {
     fn suspend(thunk: impl 'a + Fn() -> Self::FX + Send + Sync) -> Self::FX {
        flat_map(IO::apply(|| ()), move |_| thunk())

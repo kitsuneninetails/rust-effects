@@ -169,6 +169,50 @@ the operations performed on the `Ok()` value.
 The following typeclasses have been implemented.  They generally follow the functionality from the typeclasses
 in the `cats` library for Scala, with some differences to make them work effectively in Rust.
 
+```text
+
+      +---------+             +-----------+             +----------+
+      | Functor |             | Semigroup |             | Traverse |
+      +---------+             +-----------+             +----------+
+           ^
+           |
+      +----------+              +--------+
+      | Functor2 |              | Monoid |
+      +----------+              +--------+
+           ^
+           |
+     +-------------+
+     | Applicative |
+     +-------------+
+           ^
+           |
+   +------------------+
+   | ApplicativeApply |
+   +------------------+
+           ^
+           |
+       +-------+               +-------------+
+       | Monad |<--------------| Productable |
+       +-------+               +-------------+
+           ^
+           |
+      +----------+
+      | Foldable |
+      +----------+
+           ^
+           |
+     +------------+
+     | MonadError |
+     +------------+
+           ^
+           |
+       +-------+
+       | SyncT |
+       +-------+
+           
+        
+```
+
 ### Semigroup
 
 The Semigroup is a category of types which can have values "combined" to form a new value of the same type.
@@ -238,16 +282,37 @@ and `Y`), even though it can define more on top of its parent.
 ### Applicative
 
 The Applicative typeclass is a Functor where a type constructor can be created from an inner type.
-The `Applicative` trait requires `Functor` and defines the function:
+The `Applicative` trait requires `Functor2` and defines the function:
 
 ```
 fn pure(x: X) -> FX
 ```
 
-It has the same types and constraints as its `Functor` parent.
+It has the same types and constraints as its `Functor2` parent.
 
 This function should be thought of as "greedy", meaning it will consume and perform evaluation on its 
 parameters when called, rather than defering its execution.
+
+The ApplicativeApply trait extends the Applicative to add a mapping function and a method to apply
+a function wrapped in an effect to a value wrapped in an effect of the same type:
+
+```
+fn apply(func: F<fn(X) -> Y>, item: FX) -> FY
+```
+
+Although simply wrapping a function in an effect and applying it to an item seems superfluous and
+inefficient compared to simply using `fmap`, the real benefit to `apply` is that it can be chained.
+Each apply returns an effect, which can wrap an item OR a function, and because apply accepts an
+effect-wrapped function, it can easily accept a partially applied function from a previous apply 
+function in the chain:
+
+```
+let o1: Option<_> = pure(3);
+let o2: Option<_> = pure(4);
+let ap1 = apply(Some(|x| move |y| x + y), o1); // Returns Some(partially applied func)
+let final: Opion<_> = apply(ap1, o2); // Apply partially applied fun with second item
+assert_eq!(final, Some(7));
+```
 
 ### Monad
 
@@ -326,6 +391,29 @@ The sum above can be easily implemented as (`Foldable` is implemented on `VecEff
 let sum = VecEffect::fold(vec![1, 2, 3, 4, 5], 0, |y, x| y + x);
 ```
 
+### MonadError
+
+If we want to guarantee a Monad has the ability to fail quickly without the constraint of requiring a 
+`Result` be used for the type, we can bake in the concept of an error type.  This is where `MonadError` 
+comes into play.  `MonadError` requires `Foldable` and defines an error type `E` and some functions to help 
+with error raising and handling:
+
+``` 
+fn raise_error(err: E) -> FX;
+fn handle_error(f: FX, recovery: Fn(E) -> FX) -> FX;
+fn attempt(f: FX) -> Result<X, E>;
+```
+
+Any implementation of `MonadError` must be able to deal with error conditions, but it doesn't have to be an 
+internal `Result` (although that is, admittedly, one of the easiest ways to deal with it).  Still, it will have to 
+return a `Result` for the `attempt` function, so some mapping may be necessary.
+
+The `raise_error` function creates a type constructor with the error basked in (for example a `Result` in an `Err`
+condition).   The `handle_error` function takes a type constructor in a failure condition and attempts to
+recover by returning another instance of the same type constructor type (with the same interior type).  This can
+be either in a success or failure condition as well.  Finally, `attempt` will evaluate the type constructor 
+and return the condition as a `Result` (failure condition will be an `Err` while success condition will be an `Ok`).
+    
 ### Product
 
 Products aren't a standard typeclass, but it was easier to separate it out in Rust into its own trait, 
@@ -339,13 +427,16 @@ has M (number of elements in the second input) 2-tuple elements:
 ```
 
 Other contexts may define the "cross-product" differently.  They all override the function in the trait
-`Productable`, which also requires `Monad`:
+`Productable`, which also requires `Monad`, and has a default definition based on `fmap2`:
 
 ```
-fn product(x: FX, y: FY) -> FXY
+fn product(x: FX, y: FY) -> FZ {
+  fmap2(x, y, |a, b| (a, b))
+}
 ```
 
-`FXY` is defined as deriving the `F<(X, Y)>` trait, and should be the same context as the two inputs.
+`FZ` is defined as deriving the `F<(X, Y)>` trait (as it is essentially the return type from a Functor2 `fmap2` 
+function), and should be the same context as the two inputs.
 
 ### Traverse
 
