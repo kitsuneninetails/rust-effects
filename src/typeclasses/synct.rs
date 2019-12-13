@@ -16,7 +16,7 @@ pub trait SyncTEffect<'a>: Sized where Self: F<<Self as SyncTEffect<'a>>::X> {
 
 pub fn suspend<'a, FX, X>(thunk: impl Fn() -> FX + 'a + Send + Sync) -> FX
     where
-        FX: F<X> + SyncTEffect<'a, X=X>,
+        FX: SyncTEffect<'a, X=X>,
         X: 'a + Send + Sync {
     FX::Fct::suspend(thunk)
 }

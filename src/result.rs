@@ -112,7 +112,7 @@ impl <'a, X, E: Debug> SemigroupInner<'a, Result<X, E>, X> for ResultEffect<E, X
     }
 }
 
-impl<E: Debug, X: MonoidEffect<X>, Y, Z> Monoid<Result<X, E>> for ResultEffect<E, X, Y, Z> {
+impl<E: Debug, X: MonoidEffect, Y, Z> Monoid<Result<X, E>> for ResultEffect<E, X, Y, Z> {
     fn empty() -> Result<X, E> {
         Ok(empty::<X>())
     }

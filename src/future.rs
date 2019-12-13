@@ -131,7 +131,7 @@ impl<'a, X, Y, Z> Effect for FutureEffect<'a, X, Y, Z> {}
 
 impl<'a, X, Y, Z> Monoid<ConcreteFuture<'a, X>> for FutureEffect<'a, X, Y, Z>
     where
-        X: 'a + MonoidEffect<X> + Sync + Send {
+        X: 'a + MonoidEffect + Sync + Send {
     fn empty() -> ConcreteFuture<'a, X> {
         ConcreteFuture::new(ready(empty::<X>()))
     }

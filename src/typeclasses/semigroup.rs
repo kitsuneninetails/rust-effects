@@ -33,7 +33,7 @@ pub trait SemigroupInner<'a, T, X> where T: 'a {
     fn combine_inner<TO>(a: T, b: T) -> T
         where
             TO: 'a + Semigroup<X, X, X>,
-            X: MonoidEffect<X>;
+            X: MonoidEffect;
 }
 
 pub fn combine<T, T2, TR>(a: T, b: T2) -> TR
@@ -46,7 +46,7 @@ pub fn combine_inner<'a, T, X, TO>(a: T, b: T) -> T
     where
         T: 'a + SemigroupEffect<T, T, T, Fct: SemigroupInner<'a, T, X>>,
         TO: 'a + Semigroup<X, X, X>,
-        X: MonoidEffect<X> {
+        X: MonoidEffect {
     T::Fct::combine_inner::<TO>(a, b)
 }
 

@@ -217,7 +217,7 @@ impl<'a, E, X, Y, Z> Effect for IoEffect<'a, E, X, Y, Z>
 
 impl<'a, E: Debug + Send + Sync, X, Y, Z> Monoid<IO<'a, X, E>> for IoEffect<'a, E, X, Y, Z>
     where
-        X: 'a + MonoidEffect<X> + Sync + Send,
+        X: 'a + MonoidEffect + Sync + Send,
         E: 'a + Sync + Send + Debug {
     fn empty() -> IO<'a, X, E> {
         IO::new(FutureResultEffect::<E, X, Y, Z>::empty())
@@ -311,7 +311,7 @@ impl<'a, E: Debug + Send + Sync, X, Y, Z> Monad<'a> for IoEffect<'a, E, X, Y, Z>
             ConcreteFutureResult::new(
                 f.then(move |x| match x {
                     Ok(x_in) => func(x_in),
-                    Err(e) => raise_error::<IO<Y, E>, Y>(e)
+                    Err(e) => raise_error::<IO<Y, E>>(e)
                 })
             )
         )

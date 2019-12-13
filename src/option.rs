@@ -57,9 +57,9 @@ impl<X> F<X> for Option<X> {}
 
 semigroup_effect! { 1, Option, OptionEffect }
 monoid_effect! { 1, Option, OptionEffect }
+functor_effect! { 1, Option, OptionEffect }
 applicative_effect! { 1, Option, OptionEffect }
 applicativeapply_effect! { 1, Option, OptionEffect }
-functor_effect! { 1, Option, OptionEffect }
 functor2_effect! { 1, Option, OptionEffect }
 monad_effect! { 1, Option, OptionEffect }
 foldable_effect! { 1C, Option, OptionEffect }
@@ -92,7 +92,7 @@ impl<X, X2, XR> Semigroup<Option<X>, Option<X2>, Option<XR>> for OptionEffect<X,
     where
         X: SemigroupEffect<X, X2, XR> + SemigroupEffect<X, XR, XR>,
         X2: SemigroupEffect<X2, XR, XR>,
-        XR: MonoidEffect<XR> {
+        XR: MonoidEffect {
     fn combine(a: Option<X>, b: Option<X2>) -> Option<XR> {
         match (a, b) {
             (None, None) => None,
@@ -107,7 +107,7 @@ impl <'a, X> SemigroupInner<'a, Option<X>, X> for OptionEffect<X, X, X> where X:
     fn combine_inner<TO>(a: Option<X>, b: Option<X>) -> Option<X>
         where
             TO: 'a + Semigroup<X, X, X>,
-            X: MonoidEffect<X> {
+            X: MonoidEffect {
         match (a, b) {
             (None, None) => None,
             (Some(a), None) => Some(TO::combine(a, empty::<X>())),

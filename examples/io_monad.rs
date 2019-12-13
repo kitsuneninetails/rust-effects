@@ -64,10 +64,10 @@ fn ask_for_file_inferred<'a,
 }
 
 fn open_and_read_inferred<'a,
-    I: Effectful<'a, String, IOError, String, O>,
+    I: MonadEffect<'a, String, X=String, FY=O>,
     O: Effectful<'a, String, IOError>
 >(input: I) -> O {
-    flat_map(input, move |out: String| {
+    flat_map(input, move |out| {
         suspend(move || {
             match env::current_dir()
                 .map(|mut p| {
@@ -87,17 +87,14 @@ fn open_and_read_inferred<'a,
 }
 
 fn printout_inferred<'a,
-    I: Effectful<'a, String, IOError, (), O>,
-    O: Effectful<'a, (), IOError>
+    I: MonadEffect<'a, (), FY=O, X=String>,
+    O: SyncTEffect<'a, X=(), E=IOError>
 >(input: I) -> O {
-    let f: O = flat_map(input, |contents| {
-        let o = delay(move || {
+    flat_map(input, |contents| {
+        delay(move || {
             println!("Output: {:?}", contents);
-        });
-        o
-    });
-    f
-
+        })
+    })
 }
 
 type IoType<'a> = IO<'a, String, IOError>;

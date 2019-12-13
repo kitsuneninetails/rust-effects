@@ -14,11 +14,11 @@ pub trait Monoid<M> : Effect {
     fn empty() -> M;
 }
 
-pub trait MonoidEffect<M> {
-    type Fct: Monoid<M>;
+pub trait MonoidEffect : Sized {
+    type Fct: Monoid<Self>;
 }
 
-pub fn empty<X: MonoidEffect<X>>() -> X {
+pub fn empty<X: MonoidEffect>() -> X {
     X::Fct::empty()
 }
 
@@ -34,7 +34,7 @@ impl Effect for IntMulMonoid {}
 impl<'a> Monoid<&'a str> for StringMonoid {
     fn empty() -> &'a str { "" }
 }
-impl<'a> MonoidEffect<&'a str> for &'a str {
+impl<'a> MonoidEffect for &'a str {
     type Fct = StringMonoid;
 }
 

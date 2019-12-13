@@ -10,14 +10,14 @@ pub trait Monad<'a>: Effect + Applicative<'a> {
     fn flat_map(f: Self::FX, func: impl 'a + Fn(Self::X) -> Self::FY + Send + Sync) -> Self::FY;
 }
 
-pub trait MonadEffect<'a, X, Y> {
-    type FX: F<X>;
+pub trait MonadEffect<'a, Y> : F<<Self as MonadEffect<'a, Y>>::X> + Sized {
+    type X;
     type FY: F<Y>;
-    type Fct: Monad<'a, X=X, Y=Y, FX=Self::FX, FY=Self::FY> + Effect;
+    type Fct: Monad<'a, X=Self::X, Y=Y, FX=Self, FY=Self::FY> + Effect;
 }
 
-pub fn flat_map<'a, FX, FY, X, Y>(f: FX, func: impl 'a + Fn(X) -> FY + Send + Sync) -> FY
-    where FX: F<X> + MonadEffect<'a, X, Y, FX=FX, FY=FY>,
+pub fn flat_map<'a, FX, FY, Y>(f: FX, func: impl 'a + Fn(FX::X) -> FY + Send + Sync) -> FY
+    where FX: MonadEffect<'a, Y, FY=FY>,
           FY: F<Y> {
     FX::Fct::flat_map(f, func)
 }
@@ -39,16 +39,15 @@ pub trait Foldable<'a>: Effect + Monad<'a> {
             func: impl 'a + Fn(Self::Y, Self::X) -> Self::Y + Send + Sync) -> Self::Y2;
 }
 
-pub trait FoldableEffect<'a, X, Y, Y2>
+pub trait FoldableEffect<'a, X, Y, Y2> : F<X> + Sized
     where <<Self as FoldableEffect<'a, X, Y, Y2>>::Fct as Functor<'a>>::FY: F<Y> {
-    type FX: F<X>;
-    type Fct: Foldable<'a, X=X, Y=Y, Y2=Y2, FX=Self::FX> + Effect;
+    type Fct: Foldable<'a, X=X, Y=Y, Y2=Y2, FX=Self> + Effect;
 }
 
 pub fn fold<'a, FX, X, Y, Y2>(f: FX,
                               init: Y,
                               func: impl 'a + Fn(Y, X) -> Y + Send + Sync) -> Y2
-    where FX: F<X> + FoldableEffect<'a, X, Y, Y2, FX=FX>,
+    where FX: FoldableEffect<'a, X, Y, Y2>,
           <<FX as FoldableEffect<'a, X, Y, Y2>>::Fct as Functor<'a>>::FY: F<Y>{
     FX::Fct::fold(f, init, func)
 }

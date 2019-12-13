@@ -37,11 +37,11 @@ monad_effect! { 1C, Vec, VecEffect }
 foldable_effect! { 1C, Vec, VecEffect }
 productable_effect! { 1C, Vec, VecEffect }
 
-impl<'a, E, FR, X, Y, T> TraverseEffect<'a, Vec<X>, E, Vec<Y>, FR, X, Y> for Vec<X>
+impl<'a, E, FR, X, Y, T> TraverseEffect<'a, E, Vec<Y>, FR, X, Y> for Vec<X>
     where
         X: Clone,
         Y: Clone,
-        E: F<Y> + Functor2Effect<'a, Y, Vec<Y>, Vec<Y>, FX=E, FY=FR, FZ=FR>,
+        E: F<Y> + Functor2Effect<'a, Y, Vec<Y>, Vec<Y>, FY=FR, FZ=FR>,
         FR: Clone + F<Vec<Y>> + ApplicativeEffect<'a, X=Vec<Y>, Fct=T>,
         T: Applicative<'a, X=Vec<Y>, FX=FR> {
     type Fct = VecEffect<X, Y, ()>;
@@ -161,7 +161,7 @@ impl<'a, E, FR, X, Y, T, Z> Traverse<'a, Vec<X>, E, Vec<Y>, FR, X, Y> for VecEff
     where
         X: Clone,
         Y: Clone,
-        E: F<Y> + Functor2Effect<'a, Y, Vec<Y>, Vec<Y>, FX=E, FY=FR, FZ=FR>,
+        E: F<Y> + Functor2Effect<'a, Y, Vec<Y>, Vec<Y>, FY=FR, FZ=FR>,
         FR: Clone + F<Vec<Y>> + ApplicativeEffect<'a, X=Vec<Y>, Fct=T>,
         T: Applicative<'a, X=Vec<Y>, FX=FR>{
     fn traverse(fa: Vec<X>,

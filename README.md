@@ -557,11 +557,14 @@ provide *Effect trait implementations for types:
 * `semigroup_effect!(?, BaseType, EffectType)`
 * `monoid_effect!(?, BaseType, EffectType)`
 * `applicative_effect!(?, BaseType, EffectType)`
+* `applicativeapply_effect!(?, BaseType, EffectType)`
 * `functor_effect!(?, BaseType, EffectType)`
 * `functor2_effect!(?, BaseType, EffectType)`
 * `monad_effect!(?, BaseType, EffectType)`
+* `monaderror_effect!(?, BaseType, EffectType)`
 * `foldable_effect!(?, BaseType, EffectType)`
 * `productable_effect!(?, BaseType, EffectType)`
+* `synct_effect!(?, BaseType, EffectType)`
 
 Due to the way the implementation has to be differentiated for multiple type parameters, lifetimes, etc, the 
 `?` above supports several options to provide a slightly different implementation depending on the needs
@@ -736,35 +739,44 @@ Furthermore, in the definitive typeclass definition in Haskell, a Monad has the 
 which means a type which takes a `(* -> *)` and returns a type of the kind `* -> *`.  This returned
 type just needs a concrete type (like Int or String) to form a concrete, usable type.
 
-That first step is saying that we need a type that accepts a type constructor.  The input to a Monad should itself
-be a type which accepts a concrete type.  Option, Vector (Rust), List (Scala), Result (Rust), Either (Scala), all
-fit this shape.  So, we can picture Monad's definition to be something like (in pseudo-code):
-
-```text
-trait TypeConstructor {
-    def apply[X: ConcreteType](t: X) -> ConcreteType 
-}
-
-trait Monad { 
-    def apply[X: TypeConstructor](tc: X) -> TypeConstructor
-}
-
-impl TypeConstructor for Option[_] {
-    def apply[X: ConcreteType](x: X) -> Option[X]
-}
-
-impl Monad for ??? {
-    def apply[X: TypeConstructor](x: X) -> ???[X]
-
-//use Monad
-let x = ???::apply(Option); // x is a type constructor 
-let y: x = x::apply(Integer); // give x a concrete type and y is a concrete type
-let z: y = y::Ok(2);
+But the easiest compelling case is simply, "is there only one way to act on a type?"  Take the case of 
+combination from Semigroup:
 
 ```
+    fn combine(a: T, b: T) -> T
+```
 
-What's the `???`?  It's something that can take an Option (of any concrete type, to be determined later) and return
-a type which can then take that concrete type and fill it in to make a usable type. 
+If this were a property of the type itself, rather than of an abstract meta-type, then we would have a problem
+defining this for integers:
+
+```
+    fn combine(a: i32, b: i32) -> i32 {
+        a + b
+    }
+```
+
+Does this capture the entire idea of integral combinations?  What about this:
+
+```
+    fn combine(a: i32, b: i32) -> i32 {
+        a * b
+    }
+```
+
+If we can only define one, we'll have to decide and lock in a specific way to combine two integers, which
+is anathema to the modular functional programming we've been promoting up until now.
+
+The same can even be said for Monads and type constructors.  Sure, it seems like an Option has only one way
+to chain a new action on a context (act on a `Some` type, skip on a `None` type), but there are other ideas 
+out there.  When it comes to products, synchronization, and the like, the possible solutions grow.
+
+This isn't to say that generally one of the solutions is more preferred.  For this reason, the "Effect" traits 
+list the Effect object which is most likely desired for a particular typeclass.  For example, the default Semigroup
+for integers is the addition-based combination.  The default Monad, Synct, etc. for Option is contained in the 
+`OptionEffect` class, and so on.
+
+But, it is still possible to define different behaviors for the different typeclasses for a particular 
+type-constructor if desired. 
 
 ## Why is this Useful?
 

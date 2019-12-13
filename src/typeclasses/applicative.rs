@@ -26,20 +26,19 @@ pub trait ApplicativeApply<'a, M>: Effect + Applicative<'a>
     fn apply(func: Self::FMapper, x: Self::FX) -> Self::FY;
 }
 
-pub trait ApplicativeApplyEffect<'a, M, X, Y>
+pub trait ApplicativeApplyEffect<'a, M, X, Y> : F<X> + Sized
     where
         M: 'a + Fn(X) -> Y + Send + Sync {
     type FM: F<M>;
-    type FX: F<X>;
     type FY: F<Y>;
-    type Fct: ApplicativeApply<'a, M, X=X, Y=Y, FMapper=Self::FM, FX=Self::FX, FY=Self::FY> + Effect;
+    type Fct: ApplicativeApply<'a, M, X=X, Y=Y, FMapper=Self::FM, FX=Self, FY=Self::FY> + Effect;
 }
 
 pub fn apply<'a, FM, M, FX, FY, X, Y>(
     func: FM,
     f: FX) -> FY
     where
-        FX: F<X> + ApplicativeApplyEffect<'a, M, X, Y, FM=FM, FX=FX, FY=FY>,
+        FX: ApplicativeApplyEffect<'a, M, X, Y, FM=FM, FY=FY>,
         FY: F<Y>,
         FM: F<M>,
         M: 'a + Fn(X) -> Y + Send + Sync {

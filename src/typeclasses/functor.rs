@@ -14,14 +14,12 @@ pub trait Functor<'a>: Effect {
     fn fmap(f: Self::FX, func: impl 'a + Fn(Self::X) -> Self::Y + Send + Sync) -> Self::FY;
 }
 
-pub trait FunctorEffect<'a, X, Y>
-    where {
-    type FX: F<X>;
+pub trait FunctorEffect<'a, X, Y>: F<X> + Sized {
     type FY: F<Y>;
-    type Fct: Functor<'a, X=X, Y=Y, FX=Self::FX, FY=Self::FY> + Effect;
+    type Fct: Functor<'a, X=X, Y=Y, FX=Self, FY=Self::FY> + Effect;
 }
 
-pub fn fmap<'a, FX: F<X> + FunctorEffect<'a, X, Y, FX=FX, FY=FY>, FY: F<Y>, X, Y>(
+pub fn fmap<'a, FX: FunctorEffect<'a, X, Y, FY=FY>, FY: F<Y>, X, Y>(
     f: FX,
     func: impl 'a + Fn(X) -> Y + Send + Sync) -> FY {
     FX::Fct::fmap(f, func)
@@ -37,14 +35,13 @@ pub trait Functor2<'a>: Effect + Functor<'a> {
              func: impl 'a + Fn(Self::X, Self::Y) -> Self::Z + Send + Sync) -> Self::FZ;
 }
 
-pub trait Functor2Effect<'a, X, Y, Z> {
-    type FX: F<X>;
+pub trait Functor2Effect<'a, X, Y, Z> : F<X> + Sized {
     type FY: F<Y>;
     type FZ: F<Z>;
-    type Fct: Functor2<'a, X=X, Y=Y, Z=Z, FX=Self::FX, FY=Self::FY, FZ=Self::FZ> + Effect;
+    type Fct: Functor2<'a, X=X, Y=Y, Z=Z, FX=Self, FY=Self::FY, FZ=Self::FZ> + Effect;
 }
 
-pub fn fmap2<'a, FX: F<X>+ Functor2Effect<'a, X, Y, Z, FX=FX, FY=FY, FZ=FZ>, FY: F<Y>, FZ: F<Z>, X, Y, Z>(
+pub fn fmap2<'a, FX: Functor2Effect<'a, X, Y, Z, FY=FY, FZ=FZ>, FY: F<Y>, FZ: F<Z>, X, Y, Z>(
     fa: FX,
     fb: FY,
     func: impl 'a + Fn(X, Y) -> Z + Send + Sync) -> FZ {
