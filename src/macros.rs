@@ -1,8 +1,9 @@
 #[macro_export]
 macro_rules! monoid_impl {
     ($m:ty, $v:expr, $($t:ty)+) => ($(
-        impl Monoid<$t> for $m {
-            fn empty() -> $t { $v }
+        impl Monoid for $m {
+            type FX = $t;
+            fn empty() -> Self::M { $v }
         }
     )+)
 }
@@ -122,45 +123,102 @@ macro_rules! semigroup_effect {
 }
 
 #[macro_export]
+macro_rules! functor_effect {
+    (0, $m:ident, $eff:ident) => (
+        impl<'a> FunctorEffect<'a, (), ()> for $m {
+            type FnctX = ();
+            type FnctY = ();
+            type FnctZ = ();
+            type FctForY = $m;
+            type FctForZ = $m;
+            type FunctorFct = $eff;
+        }
+    );
+    (1, $m:ident, $eff:ident) => (
+        impl<'a, X, Y, Z> FunctorEffect<'a, Y, Z> for $m<X> {
+            type FnctX = X;
+            type FnctY = Y;
+            type FnctZ = Z;
+            type FctForY = $m<Y>;
+            type FctForZ = $m<Z>;
+            type FunctorFct = $eff<X, Y, Z>;
+        }
+    );
+    (S, $m:ident, $eff:ident) => (
+        impl<'a, X, Y, Z> FunctorEffect<'a, Y, Z> for $m<'a, X>
+            where
+                X: 'a + Send + Sync,
+                Y: 'a + Send + Sync,
+                Z: 'a + Send + Sync {
+            type FnctX = X;
+            type FnctY = Y;
+            type FnctZ = Z;
+            type FctForY = $m<'a, Y>;
+            type FctForZ = $m<'a, Z>;
+            type FunctorFct = $eff<'a, X, Y, Z>;
+        }
+    );
+    (2, $m:ident, $eff:ident) => (
+        impl<'a, X, Y, Z, E: Debug> FunctorEffect<'a, Y, Z> for $m<X, E> {
+            type FnctX = X;
+            type FnctY = Y;
+            type FnctZ = Z;
+            type FctForY = $m<Y, E>;
+            type FctForZ = $m<Z, E>;
+            type FunctorFct = $eff<'a, X, Y, Z>;
+        }
+    );
+    (2S, $m:ident, $eff:ident) => (
+        impl<'a, E, X, Y, Z> FunctorEffect<'a, Y, Z> for $m<'a, X, E>
+            where
+                X: 'a + Send + Sync,
+                Y: 'a + Send + Sync,
+                Z: 'a + Send + Sync,
+                E: 'a + Send + Sync + Debug {
+            type FnctX = X;
+            type FnctY = Y;
+            type FnctZ = Z;
+            type FctForY = $m<'a, Y, E>;
+            type FctForZ = $m<'a, Z, E>;
+            type FunctorFct = $eff<'a, X, Y, Z>;
+        }
+    );
+}
+
+#[macro_export]
 macro_rules! applicative_effect {
     (0, $m:ident, $eff:ident) => (
-        impl<'a> ApplicativeEffect<'a> for $m {
-            type X = ();
+        impl<'a> ApplicativeEffect<'a, ()> for $m {
             type Fct = $eff;
         }
     );
     (1, $m:ident, $eff:ident) => (
-        impl<'a, X> ApplicativeEffect<'a> for $m<X> {
-            type X = X;
+        impl<'a, X, Y> ApplicativeEffect<'a, Y> for $m<X> {
             type Fct = $eff<X, (), ()>;
         }
     );
     (1C, $m:ident, $eff:ident) => (
-        impl<'a, X: Clone> ApplicativeEffect<'a> for $m<X> {
-            type X = X;
+        impl<'a, X: Clone, Y> ApplicativeEffect<'a, Y> for $m<X> {
             type Fct = $eff<X, (), ()>;
         }
     );
     (S, $m:ident, $eff:ident) => (
-        impl<'a, X> ApplicativeEffect<'a> for $m<'a, X>
+        impl<'a, X, Y> ApplicativeEffect<'a, Y> for $m<'a, X>
             where
                 X: 'a + Send + Sync {
-            type X = X;
             type Fct = $eff<'a, X, (), ()>;
         }
     );
     (2, $m:ident, $eff:ident) => (
-        impl<'a, X, E: Debug> ApplicativeEffect<'a> for $m<X, E> {
-            type X = X;
+        impl<'a, X, Y, E: Debug> ApplicativeEffect<'a, Y> for $m<X, E> {
             type Fct = $eff<E, X, (), ()>;
         }
     );
     (2S, $m:ident, $eff:ident) => (
-        impl<'a, X, E> ApplicativeEffect<'a> for $m<'a, X, E>
+        impl<'a, X, Y, E> ApplicativeEffect<'a, Y> for $m<'a, X, E>
             where
                 X: 'a + Send + Sync,
                 E: 'a + Send + Sync + Debug {
-            type X = X;
             type Fct = $eff<'a, E, X, (), ()>;
         }
     );
@@ -226,102 +284,6 @@ macro_rules! applicativeapply_effect {
             type FM = $m<'a, M, E>;
             type FY = $m<'a, Y, E>;
             type Fct = $eff<'a, E, X, Y, ()>;
-        }
-    );
-}
-
-#[macro_export]
-macro_rules! functor_effect {
-    (0, $m:ident, $eff:ident) => (
-        impl<'a> FunctorEffect<'a, (), ()> for $m {
-            type FY = $m;
-            type Fct = $eff;
-        }
-    );
-    (1, $m:ident, $eff:ident) => (
-        impl<'a, X, Y> FunctorEffect<'a, X, Y> for $m<X> {
-            type FY = $m<Y>;
-            type Fct = $eff<X, Y, ()>;
-        }
-    );
-    (S, $m:ident, $eff:ident) => (
-        impl<'a, X, Y> FunctorEffect<'a, X, Y> for $m<'a, X>
-            where
-                X: 'a + Send + Sync,
-                Y: 'a + Send + Sync {
-            type FY = $m<'a, Y>;
-            type Fct = $eff<'a, X, Y, ()>;
-        }
-    );
-    (2, $m:ident, $eff:ident) => (
-        impl<'a, X, Y, E: Debug> FunctorEffect<'a, X, Y> for $m<X, E> {
-            type FY = $m<Y, E>;
-            type Fct = $eff<E, X, Y, ()>;
-        }
-    );
-    (2S, $m:ident, $eff:ident) => (
-        impl<'a, E, X, Y> FunctorEffect<'a, X, Y> for $m<'a, X, E>
-            where
-                X: 'a + Send + Sync,
-                Y: 'a + Send + Sync,
-                E: 'a + Send + Sync + Debug {
-            type FY = $m<'a, Y, E>;
-            type Fct = $eff<'a, E, X, Y, ()>;
-        }
-    );
-}
-
-#[macro_export]
-macro_rules! functor2_effect {
-    (0, $m:ident, $eff:ident) => (
-        impl<'a> Functor2Effect<'a, (), (), ((), ())> for $m {
-            type FY = $m;
-            type FZ = $m;
-            type Fct = $eff;
-        }
-    );
-    (1, $m:ident, $eff:ident) => (
-        impl<'a, X, Y, Z> Functor2Effect<'a, X, Y, Z> for $m<X> {
-            type FY = $m<Y>;
-            type FZ = $m<Z>;
-            type Fct = $eff<X, Y, Z>;
-        }
-    );
-    (1C, $m:ident, $eff:ident) => (
-        impl<'a, X: Clone, Y: Clone, Z> Functor2Effect<'a, X, Y, Z> for $m<X> {
-            type FY = $m<Y>;
-            type FZ = $m<Z>;
-            type Fct = $eff<X, Y, Z>;
-        }
-    );
-    (S, $m:ident, $eff:ident) => (
-        impl<'a, X, Y, Z> Functor2Effect<'a, X, Y, Z> for $m<'a, X>
-            where
-                X: 'a + Send + Sync,
-                Y: 'a + Send + Sync,
-                Z: 'a + Send + Sync {
-            type FY = $m<'a, Y>;
-            type FZ = $m<'a, Z>;
-            type Fct = $eff<'a, X, Y, Z>;
-        }
-    );
-    (2, $m:ident, $eff:ident) => (
-        impl<'a, X, Y, Z, E: Debug> Functor2Effect<'a, X, Y, Z> for $m<X, E> {
-            type FY = $m<Y, E>;
-            type FZ = $m<Z, E>;
-            type Fct = $eff<E, X, Y, Z>;
-        }
-    );
-    (2S, $m:ident, $eff:ident) => (
-        impl<'a, E, X, Y, Z> Functor2Effect<'a, X, Y, Z> for $m<'a, X, E>
-            where
-                X: 'a + Send + Sync,
-                Y: 'a + Send + Sync,
-                Z: 'a + Send + Sync,
-                E: 'a + Send + Sync + Debug {
-            type FY = $m<'a, Y, E>;
-            type FZ = $m<'a, Z, E>;
-            type Fct = $eff<'a, E, X, Y, Z>;
         }
     );
 }

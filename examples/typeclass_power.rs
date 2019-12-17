@@ -11,7 +11,7 @@ struct TestData {
     data: u32
 }
 
-fn db_call<'a, A: Applicative<'a, X=u32, FX=FR>, FR: F<u32>>() -> FR {
+fn db_call<'a, A: Applicative<'a, FnctX=u32, FctForX=FR>, FR: F<u32>>() -> FR {
     println!("Simulating a long-running service, please wait...");
     ::std::thread::sleep(::std::time::Duration::from_secs(3));
     A::pure(10)
@@ -19,8 +19,8 @@ fn db_call<'a, A: Applicative<'a, X=u32, FX=FR>, FR: F<u32>>() -> FR {
 
 fn main_caller<'a, FX, FR, F1, F2>(_: F1, _: F2) -> FR
     where
-        F1: 'a + Monad<'a, X=u32, FX=FX, Y=u32, FY=FX> + Send + Sync,
-        F2: Functor<'a, X=u32, FX=FX, Y=TestData, FY=FR>,
+        F1: 'a + Monad<'a, FnctX=u32, FctForX=FX, FnctY=u32, FctForY=FX> + Send + Sync,
+        F2: Functor<'a, FnctX=u32, FctForX=FX, FnctY=TestData, FctForY=FR>,
         FX: F<u32>,
         FR: F<TestData> {
     let f: FX = F1::pure(IntAddMonoid::empty());

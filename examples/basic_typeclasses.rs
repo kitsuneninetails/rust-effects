@@ -5,7 +5,7 @@ fn example_lib_func<'a, FX, X, FY, Y, M>(_: M, item: X, func: impl 'a + Fn(X) ->
     where
         FX: F<X>,
         FY: F<Y>,
-        M: Monad<'a, X=X, Y=Y, FX=FX, FY=FY>
+        M: Monad<'a, FnctX=X, FnctY=Y, FctForX=FX, FctForY=FY>
 {
     M::flat_map(M::pure(item), func)
 }

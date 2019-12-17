@@ -1,4 +1,5 @@
 use super::{F, Effect};
+use crate::Empty;
 
 /// The `Functor` type class.  This represents a mapping from one type to another, which takes
 /// place inside the given context.  For a Functor for context `C` containing members of type `X`,
@@ -7,43 +8,43 @@ use super::{F, Effect};
 /// the original `C`, but containing the members `{ fmap(x1), fmap(x2), ..., fmap(xn) } ` for all
 /// members` x1, x2, ..., xn` in `C`.
 pub trait Functor<'a>: Effect {
-    type X;
-    type Y;
-    type FX: F<Self::X>;
-    type FY: F<Self::Y>;
-    fn fmap(f: Self::FX, func: impl 'a + Fn(Self::X) -> Self::Y + Send + Sync) -> Self::FY;
+    type FnctX;
+    type FnctY;
+    type FnctZ;
+    type FctForX: F<Self::FnctX>;
+    type FctForY: F<Self::FnctY>;
+    type FctForZ: F<Self::FnctZ>;
+    fn fmap(f: Self::FctForX, func: impl 'a + Fn(Self::FnctX) -> Self::FnctY + Send + Sync) -> Self::FctForY;
+    fn fmap2(fa: Self::FctForX,
+             fb: Self::FctForY,
+             func: impl 'a + Fn(Self::FnctX, Self::FnctY) -> Self::FnctZ + Send + Sync) -> Self::FctForZ;
 }
 
-pub trait FunctorEffect<'a, X, Y>: F<X> + Sized {
-    type FY: F<Y>;
-    type Fct: Functor<'a, X=X, Y=Y, FX=Self, FY=Self::FY> + Effect;
+pub trait FunctorEffect<'a, Y, Z = ()>: F<<Self as FunctorEffect<'a, Y, Z>>::FnctX> + Sized {
+    type FnctX;
+    type FnctY = Y;
+    type FnctZ = Z;
+    type FctForY: F<Self::FnctY>;
+    type FctForZ: F<Self::FnctZ> = Empty;
+    type FunctorFct: Functor<'a, FnctX=Self::FnctX, FnctY=Self::FnctY, FnctZ=Self::FnctZ, FctForX=Self, FctForY=Self::FctForY, FctForZ=Self::FctForZ> + Effect;
 }
 
-pub fn fmap<'a, FX: FunctorEffect<'a, X, Y, FY=FY>, FY: F<Y>, X, Y>(
-    f: FX,
-    func: impl 'a + Fn(X) -> Y + Send + Sync) -> FY {
-    FX::Fct::fmap(f, func)
+pub fn fmap<'a, FctForX, FctForY, X, Y>(
+    f: FctForX,
+    func: impl 'a + Fn(FctForX::FnctX) -> FctForX::FnctY + Send + Sync) -> FctForY
+    where
+        FctForX: F<X> + FunctorEffect<'a, Y, FctForY=FctForY>,
+        FctForY: F<FctForX::FnctY> {
+    FctForX::FunctorFct::fmap(f, func)
 }
 
-/// Functor2 is similar to a normal `Functor`, except it can take two contexts and combine them
-/// with a function.
-pub trait Functor2<'a>: Effect + Functor<'a> {
-    type Z;
-    type FZ: F<Self::Z>;
-    fn fmap2(fa: Self::FX,
-             fb: Self::FY,
-             func: impl 'a + Fn(Self::X, Self::Y) -> Self::Z + Send + Sync) -> Self::FZ;
-}
-
-pub trait Functor2Effect<'a, X, Y, Z> : F<X> + Sized {
-    type FY: F<Y>;
-    type FZ: F<Z>;
-    type Fct: Functor2<'a, X=X, Y=Y, Z=Z, FX=Self, FY=Self::FY, FZ=Self::FZ> + Effect;
-}
-
-pub fn fmap2<'a, FX: Functor2Effect<'a, X, Y, Z, FY=FY, FZ=FZ>, FY: F<Y>, FZ: F<Z>, X, Y, Z>(
-    fa: FX,
-    fb: FY,
-    func: impl 'a + Fn(X, Y) -> Z + Send + Sync) -> FZ {
-    FX::Fct::fmap2(fa, fb, func)
+pub fn fmap2<'a, FctForX, FctForY, FctForZ, X, Y, Z>(
+    fa: FctForX,
+    fb: FctForY,
+    func: impl 'a + Fn(FctForX::FnctX, FctForX::FnctY) -> FctForX::FnctZ + Send + Sync) -> FctForZ
+    where
+        FctForX: F<X> + FunctorEffect<'a, Y, Z, FctForY=FctForY, FctForZ=FctForZ>,
+        FctForY: F<FctForX::FnctY>,
+        FctForZ: F<FctForX::FnctZ> {
+    FctForX::FunctorFct::fmap2(fa, fb, func)
 }

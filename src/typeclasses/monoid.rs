@@ -1,5 +1,5 @@
 use super::Effect;
-use crate::{monoid_impl, monoid_eff_impl};
+use std::marker::PhantomData;
 
 /// The Monoid typeclass.  This provides the concept of a "zero" or "empty" value.  This should
 /// function as the identity for the typeclass.  Combined with Semigroup, this typeclass qualifies
@@ -18,36 +18,68 @@ pub trait MonoidEffect : Sized {
     type Fct: Monoid<Self>;
 }
 
-pub fn empty<X: MonoidEffect>() -> X {
-    X::Fct::empty()
+pub fn empty<FX>() -> FX
+    where
+        FX: MonoidEffect {
+    FX::Fct::empty()
 }
 
-pub struct StringMonoid;
-impl Effect for StringMonoid {}
-
-pub struct IntAddMonoid;
-impl Effect for IntAddMonoid {}
-
-pub struct IntMulMonoid;
-impl Effect for IntMulMonoid {}
-
-impl<'a> Monoid<&'a str> for StringMonoid {
-    fn empty() -> &'a str { "" }
-}
-impl<'a> MonoidEffect for &'a str {
-    type Fct = StringMonoid;
+pub struct StringMonoid<X> {
+    _1: PhantomData<X>
 }
 
-monoid_impl! { StringMonoid, "".to_string(), String }
+impl<X> Effect for StringMonoid<X> {}
 
-monoid_impl! { IntAddMonoid, 0, u8 u16 u32 u64 i8 i16 i32 i64 }
-monoid_impl! { IntAddMonoid, 0.0, f32 f64 }
+impl Monoid<&'static str> for StringMonoid<&'static str> {
+    fn empty() -> &'static str { "" }
+}
+impl MonoidEffect for &'static str {
+    type Fct = StringMonoid<&'static str>;
+}
 
-monoid_impl! { IntMulMonoid, 1, u8 u16 u32 u64 i8 i16 i32 i64 }
-monoid_impl! { IntMulMonoid, 1.0, f32 f64 }
+impl Monoid<String> for StringMonoid<String> {
+    fn empty() -> String { format!("") }
+}
 
-monoid_eff_impl! { StringMonoid, String }
-monoid_eff_impl! { IntAddMonoid, u8 u16 u32 u64 i8 i16 i32 i64 f32 f64 }
+impl MonoidEffect for String {
+    type Fct = StringMonoid<String>;
+}
+
+#[macro_export]
+macro_rules! monoid_int_impl {
+    ($m:tt, $v:expr, $($t:ty)+) => ($(
+        impl Monoid<$t> for $m<$t> {
+            fn empty() -> $t { $v }
+        }
+    )+)
+}
+
+#[macro_export]
+macro_rules! monoid_eff_int_impl {
+    ($m:tt, $($t:ty)+) => ($(
+        impl MonoidEffect for $t {
+            type Fct = $m<$t>;
+        }
+    )+)
+}
+
+pub struct IntAddMonoid<X> {
+    _1: PhantomData<X>
+}
+impl<X> Effect for IntAddMonoid<X> {}
+
+pub struct IntMulMonoid<X> {
+    _1: PhantomData<X>
+}
+impl<X> Effect for IntMulMonoid<X> {}
+
+monoid_int_impl! { IntAddMonoid, 0, u8 u16 u32 u64 i8 i16 i32 i64 }
+monoid_int_impl! { IntAddMonoid, 0.0, f32 f64 }
+
+monoid_int_impl! { IntMulMonoid, 1, u8 u16 u32 u64 i8 i16 i32 i64 }
+monoid_int_impl! { IntMulMonoid, 1.0, f32 f64 }
+
+monoid_eff_int_impl! { IntAddMonoid, u8 u16 u32 u64 i8 i16 i32 i64 f32 f64 }
 
 #[cfg(test)]
 mod tests {

@@ -5,8 +5,8 @@ use rust_effects::io_monad;
 use std::io::Error as IOError;
 
 fn ask_for_file<'a,
-    S: SyncT<'a, FX=O, X=String, Y=String, FY=O, E=IOError>,
-    O: F<S::X>
+    S: SyncT<'a, FctForX=O, FnctX=String, FnctY=String, FctForY=O, E=IOError>,
+    O: F<S::FnctX>
 >(_: S) -> O {
     S::suspend(|| {
         println!("Input file name (io_example is a good one):");
@@ -18,8 +18,8 @@ fn ask_for_file<'a,
 }
 
 fn open_and_read<'a,
-    S: SyncT<'a, X=String, FX=T, Y=String, FY=T, E=IOError>,
-    T: F<S::X>
+    S: SyncT<'a, FnctX=String, FctForX=T, FnctY=String, FctForY=T, E=IOError>,
+    T: F<S::FnctX>
 >(_: S, input: T) -> T {
     S::flat_map(input, move |out: String| {
         S::suspend(move || {
@@ -41,10 +41,10 @@ fn open_and_read<'a,
 }
 
 fn printout<'a,
-    M: MonadError<'a, X=String, FX=I, Y=(), FY=O>,
-    S: SyncT<'a, X=M::Y, FX=M::FY, Y=M::Y, FY=M::FY>,
-    I: F<M::X>,
-    O: F<M::Y>
+    M: MonadError<'a, FnctX=String, FctForX=I, FnctY=(), FctForY=O>,
+    S: SyncT<'a, FnctX=M::FnctY, FctForX=M::FctForY, FnctY=M::FnctY, FctForY=M::FctForY>,
+    I: F<M::FnctX>,
+    O: F<M::FnctY>
 >(_: S, _: M, input: I) -> O {
     M::flat_map(input, |contents: String| S::delay(move || {
         println!("Formatted Output: {:?}", contents);
