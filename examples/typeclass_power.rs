@@ -35,7 +35,7 @@ fn main() {
 
     block_on(async {
         println!("Calling an effectful as a future, and then awaiting:");
-        let f: ConcreteFuture<_> = main_caller(future_monad!(), FutureEffect::new(()));
+        let f: ConcreteFuture<_> = main_caller(future_monad!(), FutureMonad::new(()));
         println!("Waiting on future now");
         println!("Output = {:?}", f.await);
     });

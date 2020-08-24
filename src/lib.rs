@@ -10,7 +10,6 @@ pub mod option;
 pub mod result;
 pub mod typeclasses;
 pub mod vec;
-mod macros;
 
 pub extern crate futures;
 
@@ -22,7 +21,6 @@ pub mod prelude {
         monaderror::*,
         monoid::*,
         product::*,
-        semigroup::*,
         traverse::*,
         synct::*,
         F, Effect
@@ -35,54 +33,21 @@ pub mod prelude {
     pub use crate::option::*;
     pub use crate::result::*;
     pub use crate::vec::*;
-    pub use crate::Effectful;
 }
 
 use prelude::*;
 
-pub trait Effectful<'a, Inner, Err=(), Mapped=Inner, MapEffect: F<Mapped> = Self>:
-    SyncTEffect<'a, X=Inner> +
-    ApplicativeEffect<'a, X=Inner> +
-    FunctorEffect<'a, Inner, Mapped, FX=Self, FY=MapEffect> +
-    MonadEffect<'a, Inner, Mapped, FX=Self, FY=MapEffect> +
-    MonadErrorEffect<'a, Inner, E=Err> {}
-
-impl<'a, Tp, X, Y, E, FY> Effectful<'a, X, E, Y, FY> for Tp
-    where FY: F<Y>,
-          Tp: SyncTEffect<'a, X=X> +
-              ApplicativeEffect<'a, X=X> +
-              FunctorEffect<'a, X, Y, FX=Tp, FY=FY> +
-              MonadEffect<'a, X, Y, FX=Tp, FY=FY> +
-              MonadErrorEffect<'a, X, E=E> {}
-
 pub struct Empty;
 impl<T> F<T> for Empty {}
 
-semigroup_effect! { 0, Empty, NilEffect }
-monoid_effect! { 0, Empty, NilEffect }
-applicative_effect! { 0, Empty, NilEffect }
-functor_effect! { 0, Empty, NilEffect }
-functor2_effect! { 0, Empty, NilEffect }
-monad_effect! { 0, Empty, NilEffect }
-foldable_effect! { 0, Empty, NilEffect }
-monaderror_effect! { 0, Empty, NilEffect }
-productable_effect! { 0, Empty, NilEffect }
-synct_effect! { 0, Empty, NilEffect }
-
 pub struct NilEffect;
 impl Effect for NilEffect {}
+//
+// impl<T> Monoid<T> for NilEffect {
+//     fn empty() -> Empty { Empty }
+//     fn combine(_: Empty, _: Empty) -> Empty { Empty }
+// }
 
-impl Semigroup<Empty, Empty, Empty> for NilEffect {
-    fn combine(_: Empty, _: Empty) -> Empty { Empty }
-}
-
-impl<'a> SemigroupInner<'a, Empty, ()> for NilEffect {
-    fn combine_inner<TO>(_: Empty, _: Empty) -> Empty { Empty }
-}
-
-impl Monoid<Empty> for NilEffect {
-    fn empty() -> Empty { Empty }
-}
 impl<'a> Functor<'a> for NilEffect {
     type X = ();
     type Y = ();

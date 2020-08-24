@@ -20,13 +20,13 @@ fn main() {
     println!("Result of flatmap is {:?}", res);
 
     println!("If we combine it with an 'empty': {:?}",
-             combine(res.clone(), empty()));
+             IntAddMonoid::combine(res.clone(), IntAddMonoid::empty()));
 
     println!("If we combine it with a Some(5) with Add: {:?}",
-             combine(res.clone(), Some(5u32)));
+             IntAddMonoid::combine(res.clone(), Some(5u32)));
 
     println!("If we combine it with a Some(5) with Mul: {:?}",
-             combine_inner::<_, _, IntMulSemigroup>(res.clone(), Some(5u32)));
+             IntMulMonoid::combine(res.clone(), Some(5u32)));
 
     let r_4: Result<i32, ()> = example_lib_func(result_monad!(), 3, |x| Ok(x + 1));
     println!("Ok(3) passed with general add1 func -> {:?}", r_4);

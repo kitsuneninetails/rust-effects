@@ -4,7 +4,6 @@ pub mod monad;
 pub mod monaderror;
 pub mod monoid;
 pub mod product;
-pub mod semigroup;
 pub mod synct;
 pub mod traverse;
 
