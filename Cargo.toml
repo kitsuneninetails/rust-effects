@@ -1,28 +1,14 @@
 [package]
 name = "rust-effects"
 version = "0.1.0"
-authors = ["Michael Micucci <michael.micucci@exchange.co.jp>"]
-edition = "2018"
+edition = "2024"
+authors = ["micucci"]
 
 [[examples]]
-name = "basic_typeclasses"
-
-[[examples]]
-name = "future_typeclasses"
-
-[[examples]]
-name = "future_traverse"
-
-[[examples]]
-name = "io_monad"
-
-[[examples]]
-name = "typeclass_power"
+name="hkt-like"
 
 [dependencies]
-futures-preview = { version = "0.3.0-alpha.19" }
-
-[dev-dependencies]
-serde = "*"
-serde_derive = "*"
-serde_json = "*"
+num-traits = "*"
+futures-util = "*"
+futures = "*"
+tokio = { version = "*", features = ["full"] }
