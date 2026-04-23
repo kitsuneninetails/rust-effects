@@ -63,4 +63,18 @@ mod test {
     async fn test_fmap_future() {
         assert_eq!(fmap(pure::<CFuture<_>, _>(3), |i| i + 4).await, 7);
     }
+
+    #[test]
+    fn test_bad_two_param_fmap() {
+        // Have to have a curryable function for the example
+        fn add(a: u32) -> impl Fn(u32) -> u32 {
+            move |b| a + b
+        }
+
+        // Using Option for example
+        let add3 = fmap(Some(3u32), add); // Returns Some(impl Fn(u32) -> u32) = Some(|b| 3 + b)
+        let res = fmap(Some(4), add3.unwrap()); // Won't compile without .unwrap()
+        assert_eq!(res, Some(7));
+        assert_eq!(fmap(Some(4), fmap(Some(3), add).unwrap()), Some(7)); // Compact
+    }
 }

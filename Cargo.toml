@@ -11,4 +11,5 @@ name="hkt-like"
 num-traits = "*"
 futures-util = "*"
 futures = "*"
+paste = "*"
 tokio = { version = "*", features = ["full"] }

@@ -65,22 +65,23 @@ pub fn bind<'a, T: Send + 'a, U: Send + 'a, M: Monad<'a, T, U>>(
     M::bind(m, func)
 }
 
-pub fn lift_m1<'a, In: Monad<'a, S, T>, S: Send + 'a, T>(
-    func: impl Fn(S) -> T + Send + Clone + 'a,
-) -> impl Fn(In) -> In::M {
+pub fn lift_m1<'a, In, S, T>(func: impl Fn(S) -> T + Send + Clone + 'a) -> impl Fn(In) -> In::M
+where
+    In: Monad<'a, S, T>,
+    S: Send + 'a,
+{
     In::M::lift_m1(func)
 }
 
-pub fn lift_m2<
-    'a,
+pub fn lift_m2<'a, In1, In2, S2, S1, T>(
+    func: impl Fn(S1, S2) -> T + Send + Clone + 'a,
+) -> impl Fn(In1, In2) -> In1::M
+where
     In1: Monad<'a, S1, T> + Send + Clone + 'a,
     In2: Monad<'a, S2, T, M = In1::M> + Send + Clone + 'a,
     S2: Send + Clone + 'a,
     S1: Send + Clone + 'a,
-    T,
->(
-    func: impl Fn(S1, S2) -> T + Send + Clone + 'a,
-) -> impl Fn(In1, In2) -> In1::M {
+{
     In1::M::lift_m2(func)
 }
 

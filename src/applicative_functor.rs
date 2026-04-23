@@ -108,4 +108,13 @@ mod test {
         let func = CFuture::lazy(|x| x + 4);
         assert_eq!(seq(CFuture::lazy(3), func).await, 7);
     }
+
+    #[test]
+    fn test_two_param_seq() {
+        fn add(a: u32) -> impl Fn(u32) -> u32 {
+            move |b| a + b
+        }
+        let res = seq(Some(4), seq(Some(3), Some(add)));
+        assert_eq!(res, Some(7));
+    }
 }

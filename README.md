@@ -1,41 +1,53 @@
 # Rust Effects for Functional Programming
 
-Rust is a terrific language for close-to-the-metal programming, with memory tracking, borrow mechanics,
-and easy threading.  It also has a very healthy suite of functional programming utilities, such as `map` and 
-`fold` (commonly known as map-reduce) for most iterable data structures, but also `Option`/`Result` for error
-and null handling and `map` and `and_then` for manipulating data in a context (such as `Option`, `Result`, 
-`Future`, etc.) and short-circuit chaining repeated operations which may fail or return null values.  This
-combined with by-default immutable variables, Scala-style type assignments, and functions as parameters
-make Rust a fairly strong language for functional programming.
+Rust is a terrific language for close-to-the-metal programming, with memory 
+tracking, borrow mechanics, and easy threading.  It also has a very healthy 
+suite of functional programming utilities, such as `map` and `fold` (commonly 
+known as map-reduce) for most iterable data structures, but also `Option`/`Result` 
+for error and null handling and `map` and `and_then` for manipulating data 
+in a context (such as `Option`, `Result`, `Future`, etc.) and short-circuit 
+chaining repeated operations which may fail or return null values.  This 
+combined with by-default immutable variables, Scala-style type assignments, 
+and functions as parameters make Rust a fairly strong language for functional 
+programming.
 
-One big part of FP Rust lacks is higher-kinded types.  These are included in Haskell and available in Scala
-(the `cats` library for Scala makes extensive use of HKTs), but an implementation in Rust would necessarily be
-quite complex, due to the staticly-typed nature of Rust (every type must be statically known upon instantiation),
-which is an important requirement of the memory-tracking system and the borrow-checker. 
+One big part of FP Rust lacks is higher-kinded types.  These are included in 
+Haskell and available in Scala (the `cats` library for Scala makes extensive 
+use of HKTs), but an implementation in Rust would necessarily be quite complex, 
+due to the staticly-typed nature of Rust (every type instantiated must be 
+statically known at compile time), which is an important requirement of the 
+memory-tracking system and the borrow-checker.  
 
-Without Higher-Kinded Types, can we implement a full Monadic typeclass system in Rust?
+Without Higher-Kinded Types, can we implement a full Monadic typeclass system 
+in Rust?
 
 As this library shows, yes!  Well, mostly, and hopefully sufficiently.
 
-This crate and the functions provided are largely based on the `cats` and `cats-effects` libraries for Scala,
-hence the name `rust-effects`.
+This crate and the functions provided are largely based on the `cats` and 
+`cats-effects` libraries for Scala, hence the name `rust-effects`.
+
+A big shoutout to https://github.com/antonsmetanin for all the help in establishing
+some base approaches as well as advice and aid in implementation in various modules!
 
 ## A Short Intro to Higher-Kinded Types
 
 In Haskell parlance, there is a distinction between "value", "type", and "kind."  
 
-A "value" is any concrete data value like `2`, `3.14`, `test_string`, `Color::Blue`, etc.  
+A "value" is any concrete data value like `2`, `3.14`, `test_string`, `Color::Blue`, 
+etc.  
 
-A "type" is basically a description for a set of acceptable values.  An "Integer" type allows 
-(..., -1, 0, 1, 2, ...) while "String" allows for a list of any alpha-numeric bytes (or a UTF-8 encoded 
-list of bytes, in Rust's case, or even others), and so on.  Types can also take other types, rather than take
-values.  For instance, a `List` takes another type to make a concrete type (which will then describe which 
-values are acceptable).
+A "type" is basically a description for a set of acceptable values.  An "Integer" 
+type allows (..., -1, 0, 1, 2, ...) while "String" allows for a list of any 
+alpha-numeric bytes (or a UTF-8 encoded list of bytes, in Rust's case, or even 
+others), and so on.  Types can also take other types, rather than take values.  
+For instance, a `List` takes another type to make a concrete type (which will then 
+describe which values are acceptable).
 
-A "kind" describes the meta-type system and how the types interact with each other.  Kinds are stated using `*` 
-syntax.  A type which can take a value to become "concrete" (i.e. instantiable as a specific, known member of
-the set of possible values in the type), is labeled as `*`.  A *List* of *Integers* is still `*` because it 
-needs no further information to be ready to take a value.
+A "kind" describes the meta-type system and how the types interact with each other.  
+Kinds are stated using `*` syntax.  A type which can take a value to become 
+"concrete" (i.e. instantiable as a specific, known member of the set of possible 
+values in the type), is labeled as `*`.  A *List* of *Integers* is still `*` 
+because it needs no further information to be ready to take a value.
 
 For example:
 ```text
@@ -46,19 +58,23 @@ For example:
       Kind = *
 ```
 
-Kinds which take a type to generate another type are known as "type constructors."  There are many common
-type constructors in most modern languages.  Lists, vectors, maps, options, results (Either in Haskell and 
-Scala), are all type constructors.  These are specified as `* -> *`.  This means that this type constructor 
-takes one type to generate a type ready to take a value.  A Scala *List* is `* -> *`, if we give it *Integer* (itself
-a `*`), we get *List[Integer]*, which has a kind of `*`.  If a type takes more than one type to become concrete,
-that is represented with `* -> * -> *` (and so on).  
+Kinds which take a type to generate another type are known as "type constructors."  
+There are many common type constructors in most modern languages.  Lists, vectors, maps, 
+options, results (Either in Haskell and Scala), are all type constructors.  These are 
+specified as `* -> *`.  This means that this type constructor takes one type to generate 
+a type ready to take a value.  A Scala *List* is `* -> *`, if we give it *Integer* (itself 
+a `*`), we get *List[Integer]*, which has a kind of `*`.  If a type takes more than 
+one type to become concrete, that is represented with `* -> * -> *` (and so on).  
 
-A Rust `Result` has a kind of `* -> * -> *`.  It takes one type (*u32*) to make a *Result<u32, E>*, which has a 
-kind of `* -> *`.  It takes another type (String) to make a concrete *Result<u32, String>* with a kind `*` and ready 
-to take *Ok(2)*, which is a concrete value.  Chaining type together still doesn't affect this syntax.  An 
-*Option<List&lt;X>>* is still `* -> *`, because it still needs a concrete type to make another concrete type (giving 
-it a *u32* makes a concrete *Option<List&lt;u32>>*). In the end, Option still just needs one concrete type (represented 
-by `*`, such as *List&lt;u32>*) to make it concrete.
+A Rust `Result` has a kind of `* -> * -> *`.  It takes one type (*u32*) to make a 
+*Result<u32, E>*, which has a kind of `* -> *`.  It takes another type (String) to make a 
+concrete *Result<u32, String>* with a kind `*` and ready to take *Ok(2)*, which is a 
+concrete value.  Chaining type together still doesn't affect this syntax.  An 
+*Option<List&lt;X>>* is still `* -> *`, because it still needs a concrete type to make
+ another concrete type (giving it a *u32* makes a concrete *Option<List&lt;u32>>*). In 
+ the end, Option still just needs one concrete type (represented by `*`, such as 
+ *List&lt;u32>*) to make it concrete.
+
 
 For example:
 ```text
@@ -80,16 +96,20 @@ For example:
                                                           ++=====================++
 ```
 
-The next level of abstraction up takes us to a type which takes a type constructor to form a type constructor
-(much like a type constructor takes a concrete type to form another concrete type).  These are called
-"higher-kinded types" or "higher-order type operators", formally.  Rust does not implement higher-kinded types,
-however Scala can define them with the [\_] generic syntax.  Defining a Foo[F[\_]] is to state that this type 
-"Foo" must take a type constructor (which itself takes a disregarded concrete type), and that the exact type
-constructor used isn't too important as long as it can fill the shape required (i.e. trait bounds, if any).
+The next level of abstraction up takes us to a type which takes a type constructor to 
+form a type constructor (much like a type constructor takes a concrete type to form another 
+concrete type).  These are called "higher-kinded types" or "higher-order type operators", 
+formally.  Rust does not implement higher-kinded types, however Scala can define them with 
+the [\_] generic syntax.  Defining a Foo[F[\_]] is to state that this type "Foo" must take 
+a type constructor (which itself takes a disregarded concrete type), and that the exact 
+type constructor used isn't too important as long as it can fill the shape required (i.e. 
+trait bounds, if any).
+
 Trying to instantiate `Foo[Int]` won't work, because `Int` isn't a type constructor.
 
-Higher-kinded types have a "kind" of `(* -> *) -> *`.  The `(* -> *)` part indicates the first type constructor which,
-when provided, will collapse the kind to a `* -> *`, which has already been seen above.
+Higher-kinded types have a "kind" of `(* -> *) -> *`.  The `(* -> *)` part indicates the 
+first type constructor which, when provided, will collapse the kind to a `* -> *`, which has 
+already been seen above.
 
 
 For example:
@@ -132,677 +152,479 @@ For example:
 ```
 
 
-This brings us to type classes.  Typeclasses in their basic sense are the same as traits in Scala or Rust.
-They merely define a set of behaviors for a type that implements them.  In Rust, using traits is the only way
-we can implement some of the typeclasses for higher-kinded types.
+This brings us to type classes.  Typeclasses in their basic sense are the same as traits 
+in Scala or Rust. They merely define a set of behaviors for a type that implements them.  
+In Rust, using traits is the only way we can implement some of the typeclasses for 
+higher-kinded types.
 
-Since Rust does not support higher-kinded types, this means we cannot enforce the idea of a generic type which
-must take a type constructor for its type parameter at a compiler level.  This must be enforced at an 
-implementation level.  For `Functor`, for example, a type constructor is needed because the whole idea of a 
-`Functor` is to manipulate and transform the type inside a context (i.e. the concrete type a type constructor
-is declared with) in a general way.  So it makes no sense for an Integer to also be a Functor, because it has no
-internal type to map to a different type (the shapes don't fit in the diagram above).
+Since Rust does not support higher-kinded types, this means we cannot enforce the idea 
+of a generic type which must take a type constructor for its type parameter at a compiler 
+level.  This must be enforced at an implementation level.  For `Functor`, for example, a 
+type constructor is needed because the whole idea of a `Functor` is to manipulate and 
+transform the type inside a context (i.e. the concrete type a type constructor is declared 
+with) in a general way.  So it makes no sense for an Integer to also be a Functor, because 
+it has no internal type to map to a different type (the shapes don't fit in the diagram 
+above).
 
-In the `rust-effects` crate, the `typeclasses` module represents higher-kinded typeclasses used in functional
-programming.  They are governed through implementation of a special trait: `F<X>`.  By defining this trait
-on a type constructor (where `X` is the concrete type parameter), we can enforce the idea that only types
-with this trait implemented can be used in higher-order type operators, like `Functor` and `Monad`.  This is a 
-method to get around the limitations and still enforce the laws, but only as implemented by the library developer 
-(i.e. the laws aren't implicitly enforced by the compiler).
+## CFuture
+Futures in Rust aren't actually a concrete structure, but rather a large variety of 
+structures that implement a trait: `Future`.  This makes things difficult when it comes 
+to typeclass implementations as we cannot implement mapping functions that take or
+return trait objects.  This means we need a concrete Future to hold an inner future
+object, and although we can use an existing one, they all have a context and purpose 
+associated, making it tacky at best to force one into the role.
 
-As an aside, it's probably obvious that some types with a kind of `* -> * -> * ...` don't quite fit the mold, 
-because most of the typeclasses defined for functional programming take a type constructor with a kind of `* -> *`.
-What to do with something like *Result<O, E>*, which takes _two_ types?  The answer is simple, and related to the 
-"kind" system.  To get from a type constructor *TC1* with a kind of `* -> * -> *` to a type constructor *TC1'* 
-with a kind of `* -> *`, all we have to do is provide a single concrete type to *TC1*.
+Hence, the CFuture (Concrete Future):
 
-For *Result<O, E>* that means providing one of the types, usually by fixing the error type *E*.  So, a 
-*Result<O, String>* fits the shape, as does a *Result<O, u32>* or *Result<O, ()>*.  A *Result<String, E>* also
-fits the shape, but in general most of these mathematical typeclasses are "positive-biased", meaning they lean 
-towards `Some(X)` and `Ok(X)` values when it comes to operations (for example, mapping usually works by operating on
-the positive value and leaves an error or missing value alone, as in the case of *Result* and *Option*; Scala is
-the same when it comes to *Either*).  For this reason, usually the *Result*'s error type is fixed in place, and 
-the operations performed on the `Ok()` value.    
-    
-## Higher-Kinded Typeclases in Rust-Effects
+```
+pub struct CFuture<'a, A: Clone + Send + Sync> {
+    inner: Shared<BoxFuture<'a, A>>,
+}
+```
 
-The following typeclasses have been implemented.  They generally follow the functionality from the typeclasses
-in the `cats` library for Scala, with some differences to make them work effectively in Rust.
+The `Shared` allows this to be cloneable, which is necessary when mapping to another 
+future and sending to a new thread (hence the inner type must also be cloneable and 
+sendable).
+
+Creating a CFuture is easy.  It can be created from an existing future:
+
+```
+CFuture::new_fut(async { call_my_async_function().await })
+```
+
+or even created directly from the contained data:
+```
+CFuture::lazy(3)
+```
+
+Note that this creats a lazy Future, not immediate, meaning it must be *await*ed
+to return the value.  Anything in either constructor will not be evaluated until 
+then.
+
+Once created, the CFuture also implements the `Future` trait, meaning it can be 
+*await*ed itself:
+
+```
+let fut = CFuture::lazy(3);
+assert_eq!(fut.await, 3);
+```
+
+or mapped (with `FutureExt`):
+```
+use futures_util::FutureExt;
+let fut = CFuture::lazy(3);
+let fut = fut.then(|i| i + 5);
+assert_eq!(fut.await, 8);
+```
+
+CFuture implements all of the following type classes, making it useful for mimicking 
+Higher-Kinded Types as well as for performing Monadic operations asynchronously
+(as Rust Futures are lazy, not greedy).
+
+## Rust-effects
+The `rust-effects` crate contains the `typeclass` definitions as well as implementations for various common data structures. `Future` in particular is 
+represented by the concrete `CFuture` structure,which allows static 
+storage and manipulation of the `Future` allowed by the trait itself.
+
+The `typeclasses` defined for these contexts are:
 
 ```text
 
-      +---------+             +-----------+             +----------+
-      | Functor |             | Semigroup |             | Traverse |
-      +---------+             +-----------+             +----------+
-           ^
-           |
-      +----------+              +--------+
-      | Functor2 |              | Monoid |
-      +----------+              +--------+
-           ^
-           |
-     +-------------+
-     | Applicative |
-     +-------------+
-           ^
-           |
-   +------------------+
-   | ApplicativeApply |
-   +------------------+
-           ^
-           |
-       +-------+               +-------------+
-       | Monad |<--------------| Productable |
-       +-------+               +-------------+
-           ^
-           |
-      +----------+
-      | Foldable |
-      +----------+
-           ^
-           |
-     +------------+
-     | MonadError |
-     +------------+
-           ^
-           |
-       +-------+
-       | SyncT |
-       +-------+
-           
-        
+        +---------+             +-----------+
+        | Functor |             | Semigroup |
+        +---------+             +-----------+
+             ^                        ^
+             |                        |
+      +-------------+             +--------+
+      | Applicative |             | Monoid |
+      +-------------+             +--------+
+             ^
+             |------------------------+
+             |                        |
+   +--------------------+         +-------+
+   | ApplicativeFunctor |         | Monad |
+   +--------------------+         +-------+    
 ```
 
 ### Semigroup
+Define `combine` and `combine_m` functions which can combine two instances of any 
+`Semigroup` implementation into a third of the same type.  The `combine` function will
+use additive combinations while `combine_m` will apply multiplicative combination. 
 
-The Semigroup is a category of types which can have values "combined" to form a new value of the same type.
-The `Semigroup` trait defines a single function: 
+***Function***
+
+Each trait derivation implements these functions, but there is also a global helper function 
+which can be used (Rust type inference can usually figure out the generic type parameters):
 
 ```
-fn combine(a: X1, b: X2) -> XR
-```` 
+fn combine<T: Semigroup>(a: T, b: T) -> T
+fn combine_m<T: Semigroup>(a: T, b: T) -> T
+```
 
-which takes two values of type `X` and returns a new value of type `X`.  In the Rust implementation, the
-types are actually relaxed to take two values of different types (X1 and X2) and return a third type (XR), 
-but this is purely for implementations to allow for functionally equivalent, but statically-different
-types.  Since all types in Rust are static at instantiation-time, even a wrapper type won't help
-when dealing with two types which are slightly different.  A `ConcreteFuture<AndThen<...>>` and a 
-`ConcreteFuture<Map<...>>`, for example, are completely different static types in Rust, even though they 
-are both `ConcreteFuture<impl Future>`.  To this end, in order to allow for a combination of any 
-`ConcreteFuture<T>` or for a `String` to be combined with a `&str` (or two `&str`s to be combined 
-into a `String`), the types are relaxed and the implementor must take care to ensure that the types are 
-actually abstractly (if not statically) equivalent.
+***Implementations***
 
-Semigroup can, and is, defined to allow combination of concrete types, such as `&str/String` and all 
-integral/floating-point types.  These concrete types do not implement `Semigroup` directly.  Rather, there is 
-a struct which has `Semigroup` implemented to combine the types (see below for 
-[why to implement a type operator](#Type-Operator-vs-Direct-Implementation) instead of a direct implementation).
-For numeric types, there are generally two semigroup structs defined, one for additive combination, the other for
-multiplicative.
+* All numeric types - Combine the two parameters with addition (combine) or multiplication
+  (combine_m).
+* Unit (`()`) - Returns empty tuple `()` for any combination. The combine_m function 
+  redirects to combine.
+* `String` - Returns the concatenation of the two parameter strings. The combine_m 
+  function redirects to combine.
+* `Option<T>` - If both options are Some(T), combine the inner T data as per T's combine 
+  implementation (and combine_m respectively). If one of the options being combined are None,
+  the other Option's T value will be returned.  None is returned when both Options being 
+  combined are None.
+* `Result<T, E>` - Same as Option, only with Ok(T) and Err(E).  If both parameeters
+  are Err, then the error values will be combined in the returning Err.
+* `Vec<T>` - Combining two vectors will return a result with the second operand being 
+  appended to the first.  The combine_m function redirects to combine.
+* `CFuture<T>` - Combining two Futures will result in their eventual values being *await*ed
+  and then combined (meaning the contained type T must also implement Semigroup).
 
 ### Monoid
 
-The Monoid typeclass represents types which can be empty, or return an "identity" value for which the law:
-`combine(Xvalue, X::empty()) = Xvalue` holds true.  The `Monoid` trait has a single function: 
+Monoids implement the `empty` function, which establishes an identity value for that type.
+Using `combine` with the identity value generated by `empty` will result in the other
+operand being returned unchanged (similar to adding 0 to a value).  Likewise, using
+`combine_m` with the multiplicative identity value generatede by `empty_m` will have
+the same effect.
+
+***Function***
+
+Each trait derivation implements these functions, but there is also a global helper function 
+which can be used (Rust type inference can usually figure out the generic type parameters):
 
 ```
-fn empty() -> X
+fn empty<T: Monoid>() -> T
+fn empty_m<T: Monoid>() -> T
 ```
-  
-Like, Semigroup, this is implemented on structs for concrete types, such as String and numeric types (again,
-which have a different monoid to return 0 for additive and another to return 1 for multiplicative situations).
+
+***Implementations***
+
+* All numeric types - Returns 0 for empty and 1 for empty_m.
+* Unit (`()`) - Returns () as the identity value for both empty and empty_m.
+* `String` - Returns the empty string for both empty and empty_m. 
+* `Option<T>` - Returns None for both empty and empty_m.
+* `Result<T, E>` - Returns Err(E::empty()) for empty and Err(E::empty_m()) for empty_m.
+* `Vec<T>` - Returns an empty vector for both empty and empty_m.
+* `CFuture<T>` - Returns a lazy future that evaluates to T::empty() for empty and 
+  T::empty_m() for empty_m.
 
 ### Functor
 
-The Functor is the most basic category transformation type class.  The mathematical concept of a Functor
-is simply a mapping from one category (i.e. type) to another.  The `Functor` trait defines a single function:
+Functors are operators which provide contextual mapping from one mathematical category 
+to another.  A category in mathematics is a set of  "objects" (such as types, sets, 
+ranges, shapes, etc.) and the "arrows" between them (mappings from one type to another 
+would be an example), as well as how these mappings compose (like going from String to 
+Int back to String can also be represented by a composed function that goes from String 
+to String).  
+
+In software programming, there is only one category to consider: the category 
+of all types and type transitions a programming language supports.  In a programming 
+language, the types (objects) are defined as are the methods for mapping one type to 
+another (the arrows) and the composition of these mappings, meaning this is the only 
+category to consider.  This makes all functors in a software development sense into 
+"endofunctors" (functors which map one category, the category specified by the 
+programing language's grammar, to itself).  
+
+In practical terms, a `Functor` has an `fmap` function to map from one type to another.
+The `fmap` function takes the source container and a mapping function.  This mapping 
+function takes a type T and returns a U.  The source's Functor implementation decides how 
+(or even whether) the meapping is applied.
+
+One key aspect of the Functor's fmap is that it will not alter the state of the source
+object.  It will only conditionally apply the mapping to the interior, contained data 
+and transform it if applied (as opposed to Monad, which can change the object's state).
+
+***Function***
+
+Each trait derivation implements these functions, but there is also a global helper function 
+which can be used (Rust type inference can usually figure out the generic type parameters):
 
 ```
-fn fmap(fx: FX, func: Fn(X) -> Y) -> FY [where FX: F<X>, FY: F<Y> is enforced on the associated types]
-``` 
-
-This is the most basic type class which enforces the idea that its operating element is a type constructor, and
-cannot be a concrete type.  This enforcement is handled via the `F<X>` trait, which must be implemented on any
-type to be used in any Functor-based typeclass.  This trait can technically be implemented on any type, 
-including concrete types, however, the implementor should be aware at that moment that they are committing a 
-breach of the laws at their own peril.  Without this implementation, the type cannot be used as the `fx`
-parameter in the `fmap` function.
-
-This module also defines a `Functor2` trait, which defines fmap in the case of 2 type constructors (of 
-potentially different types) being mapped into a new type constructor:
-
+fmap<'a, T, U, A: Functor<'a, T, U>>(a: A, func: impl Fn(T) -> U + Send + 'a) -> A::F
 ```
-fn fmap2(fxa: FX, fxb: FY: Fn(X, Y) -> Z) -> FZ [where FZ: F<Z> is enforced on the associated types]
-```
- 
-As with all of the typeclasses from here on up, `Functor2` inherits both its parent's types (`X`, `Y`, `FX`, and 
-`FY` in the case of `Functor`), but also the constraints (that `FX` must implement `F<X>` for example, same for `FY` 
-and `Y`), even though it can define more on top of its parent.
+
+>*Note: Type A::F is defined by the specific Functor implementation.  A::F is the output
+>Functor type and is defined as Functor\<U> (where the Functor wrapper type is the same
+>as the source's).*
+
+***Implementations***
+
+* `Option<T>` - Applies the mapping function T -> U when the source Option is Some(T) 
+  and returns Some(U), otherwise fmap returns None.
+* `Result<T, E>` - Applies the mapping function T -> U when the source Result is Ok(T) and 
+  returns Ok(U), otherwise fmap returns the untouched Err(E). 
+* `Vec<T>` - Apples the mapping function T -> U on each element of the vector, returning
+  Vec[U]. If the vector is empty, fmap returns the empty vector (also typed as Vec\<U>).
+* `CFuture<T>`- Applies the mapping function T -> U to the contained value of the future, 
+  but only when *await*ed.  Since the Future is lazy, no mapping is appleid until then.
+
+Note that some Functor implementations (such as Future and Vec), the mapping function is 
+alwais applied to each element, but in others, it is conditionally applied depending on
+the Functor object's state.
 
 ### Applicative
 
-The Applicative typeclass is a Functor where a type constructor can be created from an inner type.
-The `Applicative` trait requires `Functor2` and defines the function:
+Applicatives provide a `pure` function which returns a new Applicative instance given some
+contained value.  This allows any usage of the Applicative to construct a new Applicative 
+type very generally, allowing the same function to construct and even return different
+applicative implementations with the same implementation.
+
+The `pure` state is in contrast to the `empty` state from `Monoid`, in that pure states 
+are usually the ones where the Functor and Monadic function mappings are applied, while
+empty states are skipped (exceptions exist, however, such as CFuture).
+
+***Function***
+
+Each trait derivation implements these functions, but there is also a global helper function 
+which can be used (Rust type inference can usually figure out the generic type parameters):
 
 ```
-fn pure(x: X) -> FX
+fn pure<'a, A: Applicative<'a, T>, T>(t: T) -> A
 ```
 
-It has the same types and constraints as its `Functor2` parent.
+***Implementations***
 
-This function should be thought of as "greedy", meaning it will consume and perform evaluation on its 
-parameters when called, rather than defering its execution.
+* `Option<T>` - Creates Some(T) from the provided parameter.
+* `Result<T, E>` - Creates Ok(T) from the provided parameter.
+* `Vec<T>` - Creates a Vec<T> with one element set to the provided parameter.
+* `CFuture<T>` - Creates a new CFuture<T> with a lazy future set to return the provided 
+  parameter.
 
-The ApplicativeApply trait extends the Applicative to add a mapping function and a method to apply
-a function wrapped in an effect to a value wrapped in an effect of the same type:
+### Applicative Functor
+
+Applicative functors build on the applicative and functor concept by introducing the <*>
+operation (called "seq" and labeled as such, as Rust doesn't have user-createable infix
+operators).  The `seq` (or sequence) function acts very similar to the `fmap` function
+from Functor.  A source object is provided, along with a mapping function that converts 
+T -> U.  The difference is this mapping function is itself contained within a context
+(same as the source object's context), which makes the application of the function 
+not only conditional on the source context's state, but also on the state of the function's
+context as well.
+
+In short, Functor `fmap` sill always apply if the source context state allows it, but 
+Applicative Functor's `seq` applies only if the source and function's context state
+allows it.  This also allows the function context to be "curryable," which makes
+possible the application of a mapping function which takes two parameters:
 
 ```
-fn apply(func: F<fn(X) -> Y>, item: FX) -> FY
+// Have to have a curryable function for the example
+fn add(a: u32) -> impl Fn(u32) -> u32 {
+    move |b| a + b
+}
+
+// Using Option for example
+let add3 = seq(Some(3u32), Some(add)); // Returns Some(impl Fn(u32) -> u32) = Some(|b| 3 + b)
+let res = seq(Some(4), add3); // Since add3 = Some(fn), this will apply |b| 3 + b to 4
+assert_eq!(res, Some(7));
+assert_eq!(seq(Some(4), seq(Some(3), Some(add))), Some(7)); // Compact
 ```
 
-Although simply wrapping a function in an effect and applying it to an item seems superfluous and
-inefficient compared to simply using `fmap`, the real benefit to `apply` is that it can be chained.
-Each apply returns an effect, which can wrap an item OR a function, and because apply accepts an
-effect-wrapped function, it can easily accept a partially applied function from a previous apply 
-function in the chain:
+This is not possible with Functor without a very un-FP-like unwrap():
 
 ```
-let o1: Option<_> = pure(3);
-let o2: Option<_> = pure(4);
-let ap1 = apply(Some(|x| move |y| x + y), o1); // Returns Some(partially applied func)
-let final: Opion<_> = apply(ap1, o2); // Apply partially applied fun with second item
-assert_eq!(final, Some(7));
+// Have to have a curryable function for the example
+fn add(a: u32) -> impl Fn(u32) -> u32 {
+    move |b| a + b
+}
+
+// Using Option for example
+let add3 = fmap(Some(3u32), add); // Returns Some(impl Fn(u32) -> u32) = Some(|b| 3 + b)
+let res = fmap(Some(4), add3.unwrap()); // Won't compile without .unwrap()
+assert_eq!(res, Some(7));
+assert_eq!(fmap(Some(4), fmap(Some(3), add).unwrap()), Some(7)); // Compact
 ```
+
+***Function***
+
+Each trait derivation implements these functions, but there is also a global helper function 
+which can be used (Rust type inference can usually figure out the generic type parameters):
+
+```
+fn seq<'a, N, M, T, U>(m: N, func: N::AFunc) -> N::AOut
+where
+    N: ApplicativeFunctor<'a, M, T, U>,
+    M: Fn(T) -> U,
+```
+>*Note: Type N::AFunc and N::AOut are defined by the specific ApplicativeFunctor implementation.
+>N::AFunc is the wrapper of the function parameter: Functor<impl Fn(T) -> U.  N::AOut
+>is the wrapper of the output of seq as ApplicativeFunctor\<U>.  In implementations, these
+>are always defined to be the same type constructor as the implementation (for example, Option's
+>implementation sets N::AFunc to Option<M> ande N::AOut to Option\<U>).*
+
+***Implementations***
+
+* `Option<T>` - Same as `fmap` if function is wrapped in Some().  If the function parameter
+  is None, return None.
+* `Result<T, E>` - Same as `fmap` if function is wrapped in Ok().  If the function parameter
+  is Err(e), the return will be the source parameter's Err value or the function's Err value
+  if the source is Ok().  Note that the Error type E must be the same for both source and the
+  function parameter.
+* `Vec<T>` - Apply each function in the supplied vector for the function parameter to each 
+  value in the source parameter (in that order), so `seq([in1, in2, in3], [f1, f2, f3])` will
+  return: `[f1(in1), f1(in2), f1(in3), f2(in1), f2(in2), f2(in3), f3(in1), f3(in2), f3(in3)]`. 
+* `CFuture<T>` - Call *await* on the function parameter and the source parameter, then apply
+  the function and wrap the async block future in a new CFuture.  The function future will 
+  not be applied until the returned CFuture is itself *await*ed.
 
 ### Monad
 
-This is the class Monad typeclass of "What is a Monad?" fame.  Monads are actually quite simple.  They are 
-essentially just a typeclass which describes a context (i.e. type constructor) which can perform an operation
-which returns another context.  This is commonly encountered when calling functions which return nulls or errors.  
-Each call will return an Option or Result (in Rust) or equivalent.  Each Option/Result may have different 
-valid types, although we might want to chain them together.  A Monad is how we map that chaining.
+Monads are one of the key points behind functional programming and also present some of
+the biggest learning curves to newcomers.  However, this doesn't have to be the case.
+Monads are very simple in their concept and actually not complicated in implementation.
+The difficulty in explaining them lies in the fact that most people try to give their
+explanations grounded in mathematics.  While it is true that mathematical category
+theory underpins the ideas present in functional programming, explanations using
+mathematical concepts must invariably be obtuse, generalized, and almost completely
+non-understandable by anyone without a lot of previous study in the topic.
 
-A Functor might seem ideal, since it is a mapping of categories, but it is insufficient in this case, because
-a Functor will just map data inside a context, but in this case, we are getting a new context returned by the
-functions we are calling.  This would result in a more-and-more complex nesting of contexts, as a 
-`Option<u32>` would map to a `Option<Option<String>>` and so on.
+Fortunately, software development narrows the focus of these mathematical concepts
+to a point where we don't have to worry about the definitions and explanations for
+generalized category theory, but only those which are relevant for programming.  Much
+like how all the categories in mathematics reduce to a single category for any given
+programming language, we can reduce the concept of a Monad similarly.
 
-```text
-    +---------------+                                    +---------------------------------+          
-    | Option        |    Call "fmap" with                | Option                          |
-    |       Int(3)  | => fn returning Option<String> =>  |   +-------------------------+   |  
-    +---------------+                                    |   | Option                  |   |
-                                                         |   |     String("No errors") |   |
-                                                         |   +-------------------------+   |
-                                                         +---------------------------------+
-```
+Structurally, a Monad is a "computational context" or "computatilnal container."  All
+Monads must necessarily hold data of a single type, although the data may be multiply
+instanced (like a List or Vector as opposed to an Option or Future).  The Monad must
+also define a `bind` function (also called `flat_map` or sometimes `and_then` in Rust).
+This function signature is `T -> M\<U>` (as opposed to fmap's mapping function, which 
+is `T -> U`).  `M` in the `bind` function return is the Monad type, and must be the same
+type as the Monad implementing the `bind` function.
 
-Instead, we just want that `Option<u32>` to be passed to a new function, acted upon, and then an 
-`Option<String>` to get spit out, which can then be chained to another function, and so on. To accomplish this,
-we can call`fmap`, using a function that returns a new context (like an `Option`) and then "flatten" the
-resulting structure (`Option<Option<T>>` becomes `Option<T>`, for example) because the interim contexts
-are ultimately not useful.  This "map + flatten" action is often called "flat_map", which is actually the
-function defined in the `Monad` trait (which requires `Applicative`):
+The `bind` function is clearly similar to the `fmap` function:
 
 ```
-fn flat_map(fx: FX, func: Fn(X) -> FY) -> FY
+fmap(source: M, func: Fn(T) -> U) -> M<U>
+bind(source: M, func: Fn(T) -> M<U>) -> M<U>
 ```
 
-```text
-    +---------------+                                    +------------------------+          
-    | Option        |    Call "flat_map" with            | Option                 |
-    |       Int(3)  | => fn returning Option<String> =>  |    String("No errors") |  
-    +---------------+                                    +------------------------+
-                                                         
+In fact, if we set `U` in `fmap` to be `M\<U>` and used it instead, we'd get:
+```
+fmap(source: M, func: Fn(T) -> M<U>) -> M<M<U>>
 ```
 
-Rust often defines this as an `and_then` function, which makes sense for certain contexts, like Option and 
-Result, because the idea is "do this function which returns a Result *and then* do this next function which 
-also returns a Result." 
+The return would be a double-wrapped Monad object (such as `Option<Option<String>>` or somesuch).
+So, we could get the single `M<U>` out of this by running a `flatten` function (which flattens 
+out redundant containers or lists into a single copntainer/list).  This concept of `map` then
+`flatten` is what gives `flat_map` its name.  However, note that this implementation calls this
+same functionality as `bind` rather than `flat_map` (although both would be recognized as doing
+the same thing).  The function `bind` is called such is not for the mechanics of how it would be
+implemented, but rather due to the concept being presented.
 
-This library, for the sake of consistency, just uses "flat_map" for every context, even though thinking of
-it as an "and then" might be an easy way to picture why this is useful.
+In essence, a `bind` operation is attaching (or binding) the data inside the Monad to a 
+mapping function which then returns the same Monad (although the state can be different, 
+like an Option going from Some to None).  Because the Monad is returned, it too can have
+its data bound again to another function, and so on.  This forms a "binding chain" which
+starts from some input and continues on a number of functions, each with the ability to
+return its own state of the Monad to reflect the Monad's contextual properties.
 
-### Foldable
+And this gets into this idea of context, which is what sets the Monad in functional 
+programming aside from the Functor.  While each have their roots in mathametical category
+theory, the practical reason a Monad exists in functional programming is due to this 
+concept of context. The context of a Monad essentially governs the binding chain and 
+how data flows from input to final result.  The context is related to how data is 
+input, returned, and passed along the chain. 
 
-The `fold` function is one of the most commonly used data transformation functions in functional 
-programming.  It is equivalent to the "reduce" in "map/reduce".  Basically, a collection is reduced to a 
-single value by starting from some initial value and then each value being combined ("folded") one-by-one
-into the initial value (called an "accumulator" as its job is to "accumulate" the results and pass a
-new "initial" state on to the next combination).  At the end, a single value is returned based on the 
-combinations of each item.
+Here are the objects which implement Monad and their attached contexts: 
 
-The easiest "fold" to picture is a `sum`:
-```
-[1, 2, 3, 4, 5] => fold, starting with 0, add items => 0 + 1 => 1 + 2 => 3 + 4 => 7 + 5 => 12
-```
+* `Option` - Data can be null.  Any binding function should not act on null data and
+  should pass on the null data as is.
+* `Result` - Data can represent an error condition (with error information).  Any binding
+  function should only act on data from successful conditions and should pass on the error
+  condition and its information as is.
+* `Vec` - Data can represent non-determinate or multiple states at once.  Any binding 
+  function should act on all data individually, returning its own set of possibly non-
+  determinate results.  Any empty result (empty vector) should be removed from the data
+  set entirely and not be acted upon.
+* `Future` - Data may not be available yet, but can be awaited to ensure the data's
+  existence.  Any binding function should be suspended until the data is available, 
+  and its own result is considered to likewise be only available at some point in the
+  future.  The final resdult will only be available on demand, when the entire chain 
+  is *await*ed.
 
-This trait is declared as `Foldable`, requires `Monad`, and defines the following function:
-```
-fn fold(fx: FX, init: Y, func: Fn(Y, X) -> Y) -> Z
-```
+These contexts govern the entire binding process (which can also be seen as "binding"
+data to a particular context of computation/chaining).
 
-The `Z` parameter, as in the `combine` function for `Semigroup` is different from `Y` solely because
-of static typing in Rust, but they should be functionally equivalent types.  Having them separate just
-allows for different `Future` implementations, or `&str` to be passed in, but a `String` to be returned.
+A Monad also offers a "lift" function which take an ordinary `T -> U` function
+and convert it to a `M<T> -> M<U>` function.  This brings a normal, pure function into
+the Monad's context, allowing it act according to the Monad's rules.  Often, multiple
+"lifting" functions are provided for multiple parmeters (like `S, T -> U` being lifted
+as `M<S>, M<T> -> M<U>`).
 
-The sum above can be easily implemented as (`Foldable` is implemented on `VecEffect`):
-```
-let sum = VecEffect::fold(vec![1, 2, 3, 4, 5], 0, |y, x| y + x);
-```
-
-### MonadError
-
-If we want to guarantee a Monad has the ability to fail quickly without the constraint of requiring a 
-`Result` be used for the type, we can bake in the concept of an error type.  This is where `MonadError` 
-comes into play.  `MonadError` requires `Foldable` and defines an error type `E` and some functions to help 
-with error raising and handling:
-
-``` 
-fn raise_error(err: E) -> FX;
-fn handle_error(f: FX, recovery: Fn(E) -> FX) -> FX;
-fn attempt(f: FX) -> Result<X, E>;
-```
-
-Any implementation of `MonadError` must be able to deal with error conditions, but it doesn't have to be an 
-internal `Result` (although that is, admittedly, one of the easiest ways to deal with it).  Still, it will have to 
-return a `Result` for the `attempt` function, so some mapping may be necessary.
-
-The `raise_error` function creates a type constructor with the error basked in (for example a `Result` in an `Err`
-condition).   The `handle_error` function takes a type constructor in a failure condition and attempts to
-recover by returning another instance of the same type constructor type (with the same interior type).  This can
-be either in a success or failure condition as well.  Finally, `attempt` will evaluate the type constructor 
-and return the condition as a `Result` (failure condition will be an `Err` while success condition will be an `Ok`).
-    
-### Product
-
-Products aren't a standard typeclass, but it was easier to separate it out in Rust into its own trait, 
-as implementations tend to be very different.  Basically, a Productable defines a typeclass which can take
-two contexts and combine them into a third, where the result is a cross-product of the two inputs.  For
-vectors, this returns a vector of N vectors (N = number of elements in the first input), each of which
-has M (number of elements in the second input) 2-tuple elements: 
+An easy example of lifting would be to take an "add" function which takes two numeric 
+parameters.  We could lift this into an Option's context, where the data may be null:
 
 ```
-[ [ (X1, Y1), (X1, Y2), ..., (X1, YN) ], [ (X2, Y1), ..., (X2, YN) ], ..., [ (XN, Y1),, ..., (XN, YN) ] ]
+fn add(a: u32, b: u32) -> u32 { a + b }
+let opt_add = lift_m2::<Option<_>, _, _, _, _>(add);
+assert_eq!(opt_add(Some(4), Some(3)), Some(7));
+assert_eq!(opt_add(None, Some(3)), None);
 ```
 
-Other contexts may define the "cross-product" differently.  They all override the function in the trait
-`Productable`, which also requires `Monad`, and has a default definition based on `fmap2`:
+Note the difference to the simnple `combine` function, as a null parameter nullifies the
+result, as is in line with the Optional Monadic context of binding operations not operating 
+on null inputs.
+
+***Functions***
+
+Each trait derivation implements these functions, but there are also a global helper functions 
+which can be used (Rust type inference can usually figure out the generic type parameters):
 
 ```
-fn product(x: FX, y: FY) -> FZ {
-  fmap2(x, y, |a, b| (a, b))
-}
+pub fn bind<'a, T: Send + 'a, U: Send + 'a, M: Monad<'a, T, U>>(
+    m: M,
+    func: impl Fn(T) -> M::M + Send + 'a,
+) -> M::M;
 ```
-
-`FZ` is defined as deriving the `F<(X, Y)>` trait (as it is essentially the return type from a Functor2 `fmap2` 
-function), and should be the same context as the two inputs.
-
-### Traverse
-
-A Traverse typeclass describes the ability to take a traversable collection of items and turn it into
-a single context holding the traversable.  It is particularly useful when the traversable
-collection is filled with items that can each then be transformed into a context holding some final 
-results via a provided function.  
-
-The best example to picture this typeclass is with a vector or list of some items and a function which 
-turns those items into Futures or Results (like a login processor, making a variety of network/DB calls, 
-any of which can fail, etc.).  Running this function on the traversable as a mapping, will just give a collection
-of Results, but then the user has to go through and check each item and get the final result.
-
-Instead, it would be more useful to just have a single Result/Future with a collection of the final answers.
-Now, the user can just check or await once and then have the answers ready in a collection.  Traverse provides
-this functionality in the standalone `Traverse` trait:
+>*Note: M::M is the output Monad type and is defined by the Monad implementation as Monad\<U>*
 
 ```
-fn traverse(fa: FX, func: impl Fn(X) -> E) -> FR
-```
+pub fn lift_m1<'a, In, S, T>(func: impl Fn(S) -> T + Send + Clone + 'a) 
+  -> impl Fn(In) -> In::M
+where
+    In: Monad<'a, S, T>,
+    S: Send + 'a,
 
-The new types: `E` and `FR` are defined as:
-
-`E` - The interim context returned by the function. For example, a series of calls to a DB might all
-return Result<String, String>, so `E` is `Result<String, String>`
-
-`FR` - The same type as `E`, but now containing the collection type (`F`), so if the original `FX`
-in the above example was a Vec<X>, `FR` would be `Result<Vec<String>, String>`.
-
-Implementations should traverse the given collection `fa` and create an interim collection of objects
-returned from the function (so a collection of `E`s).  Then these should be `fold`ed with a `combine`
-function to come out with a single result, which is of the `E` type, but now holding the collection
-instead.  This is why the `E` type must implement the `Semigroup` and `Applicative` trait, because
-it needs to create a context from a raw value and then combine that context with others as the given 
-collection is folded up.
-
-Since `Traverse` really only makes sense for "traverse-able" types, it is only generally implemented 
-for collections (such as `Vec`). 
-
-## Type Inference
-
-Some of the definitions for functions have quite a few type parameters, meaning any call for these 
-would nominally have to declare the type parameters for each call.  Fortunately, type inference
-saves the headache in most cases, as long as it is clear an unambiguous which types are to be used
-for a particular call.  For a compelling case, we can look at an example.
-
-Given an implementation for Monad:
-```
-impl<'a, X> Monad<'a> for XyzMonad<X> {
-  XyzMonad::flat_map(x: Xyz, func: Fn(X) -> Xyz) -> Xyz {
-    ...
-  }
-}
-```
-
-We can define some global functions which can call this function for any Monad, as long as the system
-can figure out which one is being targeted:
+pub fn lift_m2<'a, In1, In2, S2, S1, T>(
+    func: impl Fn(S1, S2) -> T + Send + Clone + 'a,
+) 
+  -> impl Fn(In1, In2) -> In1::M
+where
+    In1: Monad<'a, S1, T> + Send + Clone + 'a,
+    In2: Monad<'a, S2, T, M = In1::M> + Send + Clone + 'a,
+    S2: Send + Clone + 'a,
+    S1: Send + Clone + 'a,
 
 ```
-flat_map<'a, T: Monad<'a>, FX: F<X>, X, FY: F<Y>, Y>(monad: T, x: FX, func: Fn(X) -> FY) -> FY {
-    T::flat_map(x, func)
-}
-let fy: Xyz<String> = flat_map(XyzMonad, Xyz::new(3), |x| Xyz::new(format!("{}", x))
+>*Note: The In::M (or In1::M, In2::M) is defined by Inpout Monads to be set to the 
+>type of the lift's output (the contained type corresponds to type T).  In the case 
+>of `lift_m2`, In1 and In2 must be the same Monad, therefore the M type will be 
+>identical.*
 
-flat_map<'a, T: Monad<'a>, FX: F<X>, X, FY: F<Y>, Y>(x: FX, func: Fn(X) -> FY) -> FY {
-    T::flat_map(x, func)
-}
-let fy = flat_map::<XyzMonad<u32>, 
-                    Xyz<u32>,  
-                    u32,  
-                    Xyz<String>,  
-                    String>(Xyz::new(3), |x| Xyz::new(format!("{}", x))
-```
-
-Both of these are fairly clunky, although the first is pretty close to the Scala+Cats method (although Rust
-has no implicits, so the evidence must be specified directly).  The latter, though, is essentially unusable 
-when every type parameter must be declared. 
-
-Instead, we can define a trait `MonadEffect` which, when implemented for a type, means that the type has a 
-default Monad associated with it, which should be used in any Monad operation.  Most types have only a 
-single Monad defined for them, so this definition can be fairly comprehensive.
-
-This is done by implementing the Effect and specifying which structure should be used to represent the
-effect for a given type.  For example, here is `MonadEffect` being defined for `Option<X>`:
+The lift functions are very verbose to use from the trait, so the general functions are
+recommended.  Even though there are a lot of type parameters, most can be set as `_` as the
+type inference can figure them out from the provided function:
 
 ```
-    impl<'a, X, Y> MonadEffect<'a, X, Y> for Option<X> {
-        type FX = Option<X>;
-        type FY = Option<Y>;
-        type Fct = OptionEffect<X, Y, ()>;
-    }
+lift_m2::<MonadType<_>, _, _, _, _>(func);
+//        ^^^^^^^^^  Put Option, Result, etc. here
 ```
+***Implementation***
 
-This is providing a structure (`OptionEffect`) which will take an `Option<X>` and turn it into an
-`Option<Y>` via a `flat_map` function.
+* `Option<T>` - Run the binding function only if Option is Some(T). Lift a pure function
+  into the context of Option (only run the function if the value is non-null). 
+* `Result<T, E>` - Run the bindng function only if Result is Ok(T).  Pass on Err(E) through
+  the binding chain as a short-circuit.  Lift a pure function into the context of Result
+  (only run the function if the value is success/Ok condition).
+* `Vec<T>` - Run the binding function on each item in the Vec's iterator and flatten the
+  returning vector into the result.  Empty vectors amount to a no-op.  Lift a pure function
+  into the context of Vec (run the function individually on all provided input data).
+* `CFuture<T>` - Map the binding function onto the Future, creating a chained Future to be
+  passed on (and chained, and so on until finally *await*ed).  Lift a pure function into the
+  context of Future (Run the function in a suspended state, only performing the function 
+  on the input value(s) when *await*ed)
 
-This allows the following function definition and call to work:
+  ## Examples
 
-```
-fn flat_map<'a, FX, X, FY: F<Y>, Y)(fx: FX, func: Fn(X) -> FY) -> FY 
-    where
-        FX: F<X> + MonadEffect<'a, X, Y, FX=FX, FY=FY>
-{
-  FX::Fct::flat_map(fx, func)
-}
-let fy: Xyz<String> = flat_map(fx, format("{}", x));
-```
- 
-This format requires that the type be declared on the receiving variable (if the type isn't put into
-a variable, then the return type/parameter type is generally enough for the type inference to work).
-The rest can be unambiguously calculated from the statement.  The type of `fx` will be known, thus fixing
-the `FX` and `X` types.  The `FY` and `Y` are known from the variable declaration.  Since `FX` is known
-`Fx::Fct` is also known, since `FX` must be a `MonadEffect`, thus allowing it to call the correct `flat_map`.
 
-This is available for all typeclasses and is so generalized the following macros are implemented to
-provide *Effect trait implementations for types:
-
-* `semigroup_effect!(?, BaseType, EffectType)`
-* `monoid_effect!(?, BaseType, EffectType)`
-* `applicative_effect!(?, BaseType, EffectType)`
-* `functor_effect!(?, BaseType, EffectType)`
-* `functor2_effect!(?, BaseType, EffectType)`
-* `monad_effect!(?, BaseType, EffectType)`
-* `foldable_effect!(?, BaseType, EffectType)`
-* `productable_effect!(?, BaseType, EffectType)`
-
-Due to the way the implementation has to be differentiated for multiple type parameters, lifetimes, etc, the 
-`?` above supports several options to provide a slightly different implementation depending on the needs
-of the types:
-
-* "1" -> Implement for a BaseType with a single, non-lifetimed type paremters (Option and Vec, for example)
-* "1C" -> Same as "1", except the "output" type (`Y` in the above documentation) will derive from `Clone`.
-    * This is only available for `functor2_effect!` and `foldable_effect!`. 
-* "S" -> Implement for a BaseType with one parameter with a `\`a` lifetime (Future and Io for example).
-* "2" -> Implement for a BaseType that takes two parameters (Result, for example)
-
-New ones must be provided if further type differentiations are needed.
-
-## Implementing a new type
-
-The best way to illustrate implementing typeclasses for a new type is by example.  Let's define a new type
-called "Pair" which takes two values of the same type (so, only one type parameter):
-
-```rust
-   struct Pair<X> { a: X, b: X }
-   impl<X> Pair<X> {
-       pub fn new(a: X, b: X) -> Self { Pair { a, b } }
-   }
-```
-
-Now, we must provide some basic implementations which all typeclasses require:
-
-```rust
-   use rust_effects::prelude::*;
-   use std::fmt::Debug;
-   impl<X> F<X> for Pair<X> {}
-```
-
-Next, let's implement the Functor typeclass to provide for a mapping of types.  This is done by creating
-an empty struct to serve as the "effect object":
-
-```rust   
-    struct PairFunctor<X, Y, Z> {
-         _a: PhantomData<X>,
-         _b: PhantomData<Y>,
-         _c: PhantomData<Z>
-    }
-    impl<X, Y, Z> PairFunctor<X, Y, Z> {
-        pub fn apply() -> Self {
-            PairFunctor {
-                _a: PhantomData,
-                _b: PhantomData,
-                _c: PhantomData
-            }
-        }
-    }
-```
-
-So, why the extra type parameters when all we need is `X`?  Furthermore, `X` is only used on the `Pair`
-itself, so why does the "effect object" need it at all?  The answer will be made clear when we start
-implementing the different typeclasses, so let's start with a simple `Functor`, the base of the
-context-based typeclasses.  We just need to implement `Functor` on this struct (see the below section for 
-why we do this rather than implementing on `Pair` directly):
-
-```rust
-    impl<X, Y, Z> Effect for PairFunctor<X, Y, Z> {}
-    impl<'a, X, Y> Functor<'a> for PairFunctor {
-        type FX = Pair<X>;
-        type FY = Pair<Y>;
-        fn fmap(f: Self::FX, func: impl 'a + Fn(X) -> Y + Send + Sync) -> Self::FY {
-            Pair::new(func(f.a), func(f.b))
-        }
-    }
-```
-
-First, the `Effect` trait must also be implemented for these "effect objects" so the system can check 
-and uphold certain laws regarding implementation as necessary.
-
-Now we can see the reason for the `Y` type parameter.  It is needed by the implementation for the `FY` type
-declaration.  Rust currently has a limitation in its generic types where the type parameters must all 
-be used in the type being implemented, or in one of the predicates ("where" clause, if present).  This
-is an intentional restriction in Rust, but the fact that this restriction doesn't extend to the associated
-types (`FX` and `FY` above) makes our job more difficult.  This means that using `X` and `Y` in the 
-associated types `FX` and `FY` won't be sufficient, because we don't have them appear in the implementation
-target or prediate (we don't have a predicate, and we have no relationships to specify which would allow
-us to limit based on `X` and `Y` in a predicate anyway).
-
-So, in order to sidestep this restriction, we have to provide phantom type parameters, which we can then use 
-to restrict our `FX` and `FY` types.  `Z` will be used in the `Functor2` trait implementation, so we provide
-it now, rather than add it in later.  There are only a maximum of three base types currently used by any 
-typeclass currently (in the aforementioned `Functor2`), so `X`, `Y`, and `Z` should be sufficient.
-
-These type parameters allow the `PairEffect` class to be instantiated on any X, Y, and Z types, separately (i.e.
-they don't have to be the same type).
-
-Providing an `apply` function for `PairEffect` which sets the `PhatomData` markers is helpful, but not 
-required.  Providing a macro to easily create a new `PairEffect` will come in handy later.
-
-```rust
-#[macro_export]
-macro_rules! pair_functor {
-    () => (VecEffect::apply(()))
-}
-```  
-
-You will find these under other implementations as `xyz_monad!()` because the effect objects being returned
-implement all of the typeclasses up to Monad (also including Foldable and Productable), so the effect object
-returned will serve as a Monad when needed (in addition to anything Monad is based on, such as Functor and
-Applicative).
-
-Last thing is to implement the `FunctorEffect`, so the type inference can be used for the global functions.
-We can do this easily via the macro:
-
-```
-functor_effect! { 1, Pair, PairEffect }
-```
-
-The "1" is stating that we only require a single type parameter for our `Pair` type, and that we don't
-use a lifetime.
-
-If you wish to implement this manually without the macro, just implement `FunctorEffect` for `Pair`:
-
-```
-    impl<'a, X, Y> FunctorEffect<'a, X, Y> for Pair<X> {
-        type FX = Pair<X>;
-        type FY = Pair<Y>;
-        type Fct = PairEffect<X, Y, ()>;
-    }
-```
-
-So, now we have a new type and its associated effect object which implements our Functor.  Let's see how 
-we would use it.  Given some function with generic types which require a Functor (one using an evidence object, 
-and the other using type inference through a `FunctorEffect`):
-
-```rust
-    fn usage<'a, T: Functor<'a, X=X, Y=String>, X: Debug>(_ev: T, input: T::FX) -> T::FY {
-        T::fmap(input, |x| format!("{:?}", x))
-    }
-    fn usage_inferred<'a, X, Y, FX: F<X>, FY: F<Y>>(input: FX) -> FY 
-        where
-            FX: FunctorEffect<'a, X, Y, FX=FX, FY=FY> 
-    {
-        fmap(input, |x| format!("{:?}", x))
-    }
-```
-
-We'd use it in a function like this:
-```rust
-   fn main() {
-        // Use fmap straight, using type inference
-        let out: Pair<String> = fmap(Pair::new(2, 2), |x| format!("{:?}", x));
-
-        // Use our defined function which requires an "evidence" object.
-        let out: Pair<String> = usage(pair_functor!(), Pair::new(1, 1));
-
-        // Use our defined function which can infer based on the FunctorEffect
-        let out: Pair<String> = usage_inferred(Pair::new(2, 2));
-   }
-```
-
-## Type Operator vs Direct Implementation
-
-One of the main questions in implementation of any of these typeclasses would be: "why implement a separate
-effect object when you can just implement `Functor` on `Pair` itself?"
-
-The answer is a bit complex and has a lot more to do with structure and style rather than functionality.
-
-In Scala, with Cats, implementing `Monad`, for example, on an object like `Either` or `Future` means that 
-when writing a function which takes a `Monad`, a trait bound must be used:
-
-```scala
-def foo[X <: Monad](x: X): Y = ??
-``` 
-
-This will actually lead to many problems in more complex situations, where the program will just not compile.
-Furthermore, in the definitive typeclass definition in Haskell, a Monad has the "kind": `(* -> *) -> *`
-which means a type which takes a `(* -> *)` and returns a type of the kind `* -> *`.  This returned
-type just needs a concrete type (like Int or String) to form a concrete, usable type.
-
-That first step is saying that we need a type that accepts a type constructor.  The input to a Monad should itself
-be a type which accepts a concrete type.  Option, Vector (Rust), List (Scala), Result (Rust), Either (Scala), all
-fit this shape.  So, we can picture Monad's definition to be something like (in pseudo-code):
-
-```text
-trait TypeConstructor {
-    def apply[X: ConcreteType](t: X) -> ConcreteType 
-}
-
-trait Monad { 
-    def apply[X: TypeConstructor](tc: X) -> TypeConstructor
-}
-
-impl TypeConstructor for Option[_] {
-    def apply[X: ConcreteType](x: X) -> Option[X]
-}
-
-impl Monad for ??? {
-    def apply[X: TypeConstructor](x: X) -> ???[X]
-
-//use Monad
-let x = ???::apply(Option); // x is a type constructor 
-let y: x = x::apply(Integer); // give x a concrete type and y is a concrete type
-let z: y = y::Ok(2);
-
-```
-
-What's the `???`?  It's something that can take an Option (of any concrete type, to be determined later) and return
-a type which can then take that concrete type and fill it in to make a usable type. 
-
-## Why is this Useful?
-
-## Examples
-
-### Basic_Typeclasses
-
-Show off how to use basic typeclasses, specifically Functor and Monad.
-
-### Typeclass_Power
-
-Show the power of typeclasses, how the same function can run generically and take two very different inputs,
-output two very different types (selected by the caller when the function is executed), but still
-act in the exact same manner on the data given. 
-
-With this, library implementors can implement functions specifically to perform a task but take a very generic 
-set of inputs and output a generic set of outputs without requiring complicated generics and trait bounding.
-
-### Future_Typeclasses
-
-Futures can also harness the typeclass system to set up "blueprints" of how to process an action at some point
-in the future.  This example shows both executing calls inline as well as setting up a future chain that can execute 
-at a given time.
-
-### Future_Traverse
-
-Often, a series of function calls with similar parameters and outputs must be called in sequence.  Rather than 
-chaining these together manually, and wait on each future one-by-one, a program writer could instead put all
-of these effectful (i.e. returning a type constructor like "Future" or "Result") functions
-
-### Io_Monad
-
-The accumulation of the ideas presented in the `rust_effects` library, adding in the IO monad, which handles 
-suspending Input/Output effects in a future while also handling error conditions in the IO itself (separate from
-the actual results and wrapped types).
-
-The IO monad is based on the Scala Cats library version (rather than the Haskell version), which acts basically like 
-a Future, but using suspended creation effects as a default, rather than greedily executing creation effects 
-as a Future (Futures will execute their effects upon creation with `pure`, and only create real future-based
-effects when using `flat_map`, etc., while IO can `suspend` effects from the start and only execute them when 
-`run_sync` or `attempt` is called).

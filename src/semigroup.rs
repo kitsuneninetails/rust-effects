@@ -3,31 +3,39 @@ use std::{collections::HashMap, hash::Hash};
 use crate::CFuture;
 use futures::FutureExt;
 
-pub trait Semigroup {
+pub trait Semigroup: Sized {
     fn combine(a: Self, b: Self) -> Self;
+    fn combine_m(a: Self, b: Self) -> Self {
+        combine(a, b)
+    }
 }
 
 #[macro_export]
-macro_rules! sg_impl {
-    ($m:ty, $op:tt) => (
+macro_rules! sg_num_impl {
+    ($m:ty) => {
         impl Semigroup for $m {
-            fn combine(a: Self, b: Self) -> Self { a $op b }
+            fn combine(a: Self, b: Self) -> Self {
+                a + b
+            }
+            fn combine_m(a: Self, b: Self) -> Self {
+                a * b
+            }
         }
-    )
+    };
 }
 
-sg_impl! { u64, + }
-sg_impl! { u32, + }
-sg_impl! { u16, + }
-sg_impl! { u8, + }
-sg_impl! { i64, + }
-sg_impl! { i32, + }
-sg_impl! { i16, + }
-sg_impl! { i8, + }
+sg_num_impl! { u64 }
+sg_num_impl! { u32 }
+sg_num_impl! { u16 }
+sg_num_impl! { u8 }
+sg_num_impl! { i64 }
+sg_num_impl! { i32 }
+sg_num_impl! { i16 }
+sg_num_impl! { i8 }
 
-sg_impl! { f32, + }
-sg_impl! { f64, + }
-sg_impl! { usize, + }
+sg_num_impl! { f32 }
+sg_num_impl! { f64 }
+sg_num_impl! { usize }
 
 impl Semigroup for () {
     fn combine(_a: Self, _b: Self) -> Self {
@@ -49,15 +57,31 @@ impl<A: Semigroup> Semigroup for Option<A> {
             (None, None) => None,
         }
     }
+    fn combine_m(a: Self, b: Self) -> Self {
+        match (a, b) {
+            (Some(t), Some(u)) => Some(combine_m(t, u)),
+            (Some(t), None) => Some(t),
+            (None, Some(u)) => Some(u),
+            (None, None) => None,
+        }
+    }
 }
 
-impl<A: Semigroup, E> Semigroup for Result<A, E> {
+impl<A: Semigroup, E: Semigroup> Semigroup for Result<A, E> {
     fn combine(a: Self, b: Self) -> Self {
         match (a, b) {
             (Ok(t), Ok(u)) => Ok(combine(t, u)),
             (Ok(t), Err(_)) => Ok(t),
             (Err(_), Ok(u)) => Ok(u),
-            (Err(e), Err(_)) => Err(e),
+            (Err(e), Err(e2)) => Err(combine(e, e2)),
+        }
+    }
+    fn combine_m(a: Self, b: Self) -> Self {
+        match (a, b) {
+            (Ok(t), Ok(u)) => Ok(combine_m(t, u)),
+            (Ok(t), Err(_)) => Ok(t),
+            (Err(_), Ok(u)) => Ok(u),
+            (Err(e), Err(e2)) => Err(combine_m(e, e2)),
         }
     }
 }
@@ -90,15 +114,28 @@ impl<'a, A: 'a + Send + Sync + Clone + Semigroup> Semigroup for CFuture<'a, A> {
             .then(move |a_res| b.inner.map(move |b_res| A::combine(a_res, b_res)));
         CFuture::new_fut(new_fut)
     }
+    fn combine_m(a: Self, b: Self) -> Self {
+        let new_fut = a
+            .inner
+            .then(move |a_res| b.inner.map(move |b_res| A::combine_m(a_res, b_res)));
+        CFuture::new_fut(new_fut)
+    }
 }
 
 pub fn combine<T: Semigroup>(a: T, b: T) -> T {
     T::combine(a, b)
 }
 
+pub fn combine_m<T: Semigroup>(a: T, b: T) -> T {
+    T::combine_m(a, b)
+}
+
 #[cfg(test)]
 mod test {
-    use crate::{CFuture, semigroup::combine};
+    use crate::{
+        CFuture,
+        semigroup::{combine, combine_m},
+    };
 
     #[test]
     fn test_combine_option() {
@@ -106,6 +143,10 @@ mod test {
         assert_eq!(combine(Some(3), None), Some(3));
         assert_eq!(combine(None, Some(4)), Some(4));
         assert_eq!(combine(Option::<u32>::None, None), None);
+        assert_eq!(combine_m(Some(3), Some(4)), Some(12));
+        assert_eq!(combine_m(Some(3), None), Some(3));
+        assert_eq!(combine_m(None, Some(4)), Some(4));
+        assert_eq!(combine_m(Option::<u32>::None, None), None);
     }
 
     #[test]
@@ -113,7 +154,11 @@ mod test {
         assert_eq!(combine(Ok::<_, u32>(3), Ok(4)), Ok(7));
         assert_eq!(combine(Ok(3), Err(4)), Ok(3));
         assert_eq!(combine(Err(3), Ok(4)), Ok(4));
-        assert_eq!(combine(Err::<u32, _>(3), Err(4)), Err(3));
+        assert_eq!(combine(Err::<u32, _>(3), Err(4)), Err(7));
+        assert_eq!(combine_m(Ok::<_, u32>(3), Ok(4)), Ok(12));
+        assert_eq!(combine_m(Ok(3), Err(4)), Ok(3));
+        assert_eq!(combine_m(Err(3), Ok(4)), Ok(4));
+        assert_eq!(combine_m(Err::<u32, _>(3), Err(4)), Err(12));
     }
     #[test]
     fn test_combine_vec() {
