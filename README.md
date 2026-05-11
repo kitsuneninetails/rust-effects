@@ -31,9 +31,23 @@ some base approaches as well as advice and aid in implementation in various modu
 
 ## Quick Start
 
+To get all the typeclasses with their global functions and macros and the `CFuture` 
+struct:
 ```
   use rust_effects::prelude::*
 ```
+
+To get only typeclasses:
+```
+  use rust_effects::prelude::typeclasses::*;
+```
+
+To get only the CFuture struct:
+```
+  use rust_effects::prelude::CFuture;
+```
+
+
 ## A Short Intro to Higher-Kinded Types
 
 In Haskell parlance, there is a distinction between "value", "type", and "kind."  
