@@ -49,9 +49,65 @@ pub trait Applicative<'a, T, U = ()>: Functor<'a, T, U> {
     fn pure(a: T) -> Self;
 }
 
+/// Global `pure` function
+///
+/// Calls the `pure` implementation for type `A`.
+///
+/// The `pure` function takes two type parameters and one data parameter.  The
+/// type parameters are the type `A`, which is the type constructor to create and
+/// type `T`, the type of the data parameter.  The result of the `pure` function is
+/// a type constructor containing the passed in data.
+///
+/// Since the type parameter `A` is completely reliant on the return type, it is
+/// much more difficult for the Rusat type inference to figure it out without hints.
+/// Unless the return from `pure` is directly consumed by a typed parameter or the
+/// `let` is used with a type designation, the type parameter must be explicitly
+/// stated,. which means the type `T` must also be present.  Usually, the type `A`,
+/// being a type constructor for type `T` also has to mention the type `T`, forcing
+/// a lot of redundant information into the type parameter declaration.  Fortunately,
+/// _ can be used in most cases to omit the actual type T, since the data parameter
+/// almost always sets that.  However, the usage is still one of the clunky examples:
+///
+/// ```rust
+///   use rust_effects::prelude::pure;
+///   let a: Option<u32> = pure(2);
+///   let b = pure::<Option<_>, _>(2);
+///   fn foo(_b: Option<u32>) {}
+///   foo(pure(2));
+/// ```
+///
+/// None of which are partiucularly compelling.  Thus, a macro has been provided.
+///
+/// # Pure Macro
+///
+/// The `pure!` macro takes the type of the type constructor in []s and allows type
+/// inference to figure out `T`:
+///
+/// ```text
+///   pure![Type](data)
+/// ```
+/// Example:
+/// ```rust
+///
+///   use rust_effects::{prelude::pure};
+///   assert_eq!(pure![Option](2), Some(2));
+/// ```
 pub fn pure<'a, A: Applicative<'a, T>, T>(t: T) -> A {
     A::pure(t)
 }
 
+#[macro_export]
+macro_rules! pure {
+    ($m:tt) => {
+        pure::<$m<_>, _>
+    };
+}
 #[cfg(test)]
-mod test {}
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_pure_macro() {
+        assert_eq!(pure![Option](33), Some(33));
+    }
+}

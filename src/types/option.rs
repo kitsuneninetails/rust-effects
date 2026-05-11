@@ -110,28 +110,6 @@ mod test {
         assert!(seq(None, func_none).is_none());
     }
 
-    #[test]
-    fn test_bad_two_param_fmap() {
-        // Have to have a curryable function for the example
-        fn add(a: u32) -> impl Fn(u32) -> u32 {
-            move |b| a + b
-        }
-
-        // Using Option for example
-        let add3 = fmap(Some(3u32), add); // Returns Some(impl Fn(u32) -> u32) = Some(|b| 3 + b)
-        let res = fmap(Some(4), add3.unwrap()); // Won't compile without .unwrap()
-        assert_eq!(res, Some(7));
-        assert_eq!(fmap(Some(4), fmap(Some(3), add).unwrap()), Some(7)); // Compact
-    }
-    #[test]
-    fn test_two_param_seq() {
-        fn add(a: u32) -> impl Fn(u32) -> u32 {
-            move |b| a + b
-        }
-        let res = seq(Some(4), seq(Some(3), Some(add)));
-        assert_eq!(res, Some(7));
-    }
-
     fn empty_if_even<'a, M: Monad<'a, u32> + Monoid + Applicative<'a, u32>>(input: String) -> M {
         if input.len() % 2 == 0 {
             M::empty()

@@ -29,6 +29,11 @@ This crate and the functions provided are largely based on the `cats` and
 A big shoutout to https://github.com/antonsmetanin for all the help in establishing
 some base approaches as well as advice and aid in implementation in various modules!
 
+## Quick Start
+
+```
+  use rust_effects::prelude::*
+```
 ## A Short Intro to Higher-Kinded Types
 
 In Haskell parlance, there is a distinction between "value", "type", and "kind."  
