@@ -1,7 +1,5 @@
 use futures::future::ready;
-use rust_effects::{
-    CFuture, applicative::Applicative, functor::Functor, monad::Monad, monoid::Monoid,
-};
+use rust_effects::prelude::*;
 
 pub fn foo<'a, M>(input: impl Monad<'a, String, u32, M = M>) -> M
 where

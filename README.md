@@ -610,6 +610,18 @@ type inference can figure them out from the provided function:
 lift_m2::<MonadType<_>, _, _, _, _>(func);
 //        ^^^^^^^^^  Put Option, Result, etc. here
 ```
+
+To help with this verbosity, macros can be used for syntatic sugaring:
+
+```
+fn add3(a: u32) -> u32 { a + 3 }
+let opt_add = lift_m1![Option](add3);
+let out = add3(Some(4)); // == Some(7)
+
+fn add(a: u32, b: u32) -> u32 { a + b }
+let opt_add = lift_m2![Option](add);
+let out = add(Some(3), Some(4)); // == Some(7)
+```
 ***Implementation***
 
 * `Option<T>` - Run the binding function only if Option is Some(T). Lift a pure function

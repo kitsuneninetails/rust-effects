@@ -1,40 +1,19 @@
-pub mod applicative;
-pub mod applicative_functor;
-//pub mod free_monad;
-pub mod functor;
-pub mod monad;
-pub mod monoid;
-pub mod semigroup;
+pub mod typeclasses;
+pub mod types;
 
-use futures::future::{Shared, lazy};
-use futures_util::{FutureExt, future::BoxFuture};
-
-#[derive(Clone)]
-pub struct CFuture<'a, A: Clone + Send + Sync> {
-    inner: Shared<BoxFuture<'a, A>>,
-}
-
-impl<'a, A: Clone + Send + Sync + 'a> CFuture<'a, A> {
-    pub fn lazy(val: A) -> Self {
-        CFuture::new_fut(lazy(move |_| val))
+pub mod prelude {
+    pub use {typeclasses::*, types::*};
+    pub mod typeclasses {
+        pub use crate::typeclasses::{
+            applicative::{Applicative, pure},
+            applicative_functor::{ApplicativeFunctor, seq},
+            functor::{Functor, fmap},
+            monad::{Monad, bind, lift_m1, lift_m2},
+            monoid::{Monoid, empty, empty_m},
+            semigroup::{Semigroup, combine, combine_m},
+        };
     }
-
-    pub fn new_fut(inner: impl Future<Output = A> + Send + 'a) -> Self {
-        CFuture {
-            inner: inner.boxed().shared(),
-        }
+    pub mod types {
+        pub use crate::types::cfuture::CFuture;
     }
 }
-
-impl<'a, A: Clone + Send + Sync> Future for CFuture<'a, A> {
-    type Output = A;
-    fn poll(
-        mut self: std::pin::Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Self::Output> {
-        self.inner.poll_unpin(cx)
-    }
-}
-
-unsafe impl<'a, A: Clone + Send + Sync> Send for CFuture<'a, A> {}
-unsafe impl<'a, A: Clone + Send + Sync> Sync for CFuture<'a, A> {}
