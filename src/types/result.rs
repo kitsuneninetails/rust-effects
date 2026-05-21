@@ -1,6 +1,6 @@
 use crate::prelude::typeclasses::*;
 
-impl<A: Semigroup, E: Monoid> Monoid for Result<A, E> {
+impl<A: Monoid, E: Monoid> Monoid for Result<A, E> {
     fn empty() -> Self {
         Err(E::empty())
     }
@@ -9,53 +9,53 @@ impl<A: Semigroup, E: Monoid> Monoid for Result<A, E> {
     }
 }
 
-impl<A: Semigroup, E: Semigroup> Semigroup for Result<A, E> {
+impl<A: Monoid, E: Monoid> Semigroup for Result<A, E> {
     fn combine(a: Self, b: Self) -> Self {
         match (a, b) {
             (Ok(t), Ok(u)) => Ok(combine(t, u)),
-            (Ok(t), Err(_)) => Ok(t),
-            (Err(_), Ok(u)) => Ok(u),
+            (Ok(t), Err(_)) => Ok(A::combine(t, A::empty())),
+            (Err(_), Ok(u)) => Ok(A::combine(u, A::empty())),
             (Err(e), Err(e2)) => Err(combine(e, e2)),
         }
     }
     fn combine_m(a: Self, b: Self) -> Self {
         match (a, b) {
             (Ok(t), Ok(u)) => Ok(combine_m(t, u)),
-            (Ok(t), Err(_)) => Ok(t),
-            (Err(_), Ok(u)) => Ok(u),
+            (Ok(t), Err(_)) => Ok(A::combine_m(t, A::empty_m())),
+            (Err(_), Ok(u)) => Ok(A::combine_m(u, A::empty_m())),
             (Err(e), Err(e2)) => Err(combine_m(e, e2)),
         }
     }
 }
 
-impl<'a, T, U, E> Functor<'a, T, U> for Result<T, E> {
-    type F = Result<U, E>;
-    fn fmap(m: Self, func: impl FnOnce(T) -> U + Send + 'a) -> Self::F {
+impl<T, U, E> Functor<T, U> for Result<T, E> {
+    type FunctorOut = Result<U, E>;
+    fn fmap(m: Self, func: impl FnOnce(T) -> U + Send) -> Self::FunctorOut {
         m.map(func)
     }
 }
 
-impl<'a, T, U, E> Applicative<'a, T, U> for Result<T, E> {
+impl<T, U, E> Applicative<T, U> for Result<T, E> {
     fn pure(a: T) -> Self {
         Ok(a)
     }
 }
 
-impl<'a, F, T, U, E> ApplicativeFunctor<'a, F, T, U> for Result<T, E>
+impl<F, T, U, E> ApplicativeFunctor<F, T, U> for Result<T, E>
 where
     F: Fn(T) -> U,
-    T: Send + Clone + 'a,
+    T: Send + Clone,
 {
-    type AOut = Result<U, E>;
-    type AFunc = Result<F, E>;
-    fn seq(m: Self, func: Self::AFunc) -> Self::AOut {
+    type AppFuncOut = Result<U, E>;
+    type AppFuncFn = Result<F, E>;
+    fn seq(m: Self, func: Self::AppFuncFn) -> Self::AppFuncOut {
         func.and_then(|f| m.map(|t| f(t)))
     }
 }
 
-impl<'a, T, U: Send, E: Send> Monad<'a, T, U> for Result<T, E> {
-    type M = Result<U, E>;
-    fn bind(m: Self, func: impl FnOnce(T) -> Self::M + Send + 'a) -> Self::M {
+impl<T, U: Send, E: Send> Monad<T, U> for Result<T, E> {
+    type MonadOut = Result<U, E>;
+    fn bind(m: Self, func: impl FnOnce(T) -> Self::MonadOut + Send) -> Self::MonadOut {
         m.and_then(func)
     }
 }
@@ -73,13 +73,13 @@ mod test {
     #[test]
     fn test_identity_result() {
         assert_eq!(combine(Ok(3u32), Result::<u32, ()>::empty()), Ok(3u32));
-        assert_eq!(combine(Result::<u32, ()>::empty(), Ok(3u32),), Ok(3u32));
+        assert_eq!(combine(Result::<u32, ()>::empty(), Ok(3u32)), Ok(3u32));
         assert_eq!(
             combine(Result::<u32, u32>::empty(), Result::<u32, u32>::empty()),
             Err(0u32)
         );
-        assert_eq!(combine_m(Ok(3u32), Result::<u32, ()>::empty_m()), Ok(3u32));
-        assert_eq!(combine_m(Result::<u32, ()>::empty_m(), Ok(3u32),), Ok(3u32));
+        assert_eq!(combine_m(Ok(3u32), Result::<u32, u32>::empty_m()), Ok(3u32));
+        assert_eq!(combine_m(Result::<u32, u32>::empty_m(), Ok(3u32)), Ok(3u32));
         assert_eq!(
             combine_m(Result::<u32, u32>::empty_m(), Result::<u32, u32>::empty_m()),
             Err(1u32)
@@ -117,7 +117,7 @@ mod test {
         assert!(seq(Err(()), func_none.ok_or(())).is_err());
     }
 
-    fn empty_if_even<'a, M: Monad<'a, u32> + Monoid + Applicative<'a, u32>>(input: String) -> M {
+    fn empty_if_even<M: Monad<u32> + Monoid + Applicative<u32>>(input: String) -> M {
         if input.len() % 2 == 0 {
             M::empty()
         } else {

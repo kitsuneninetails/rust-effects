@@ -8,16 +8,16 @@
 /// To implement the Functor trait, a type must first be a "type constructor" which
 /// accepts a type parameter to become a concrete type.  Then, it should delcare a type `F`:
 /// ```text
-/// type F: Functor<'a, U>;
+/// type F: Functor<U>;
 /// ```
 ///
 /// and implement the `fmap` function:
 ///
 /// ```text
-///  fn fmap(m: Self, func: impl Fn(T) -> U + Send + 'a) -> Self::F;
+///  fn fmap(m: Self, func: impl Fn(T) -> U + Send + 'static) -> Self::FunctorOut;
 /// ```
 ///
-/// The type `F` declared should be the Functor type implementation, but typed
+/// The type `FunctorOut` declared should be the Functor type implementation, but typed
 /// on U instead of T.  This is the output of the `fmap` functionh and this
 /// constrains the output to be the same type as the source parameter.
 ///
@@ -26,16 +26,16 @@
 /// use rust_effects::prelude::*;
 /// struct MyStruct<T>(T);
 ///
-/// impl<'a, T, U> Functor<'a, T, U> for MyStruct<T> {
-///   type F = MyStruct<U>;
-///   fn fmap(m: Self, func: impl Fn(T) -> U + Send + 'a) -> Self::F {
+/// impl<T, U> Functor<T, U> for MyStruct<T> {
+///   type FunctorOut = MyStruct<U>;
+///   fn fmap(m: Self, func: impl Fn(T) -> U + Send) -> Self::FunctorOut {
 ///     MyStruct(func(m.0))
 ///   }
 /// }
 /// ```
-pub trait Functor<'a, T, U = ()> {
-    type F: Functor<'a, U>;
-    fn fmap(m: Self, func: impl Fn(T) -> U + Send + 'a) -> Self::F;
+pub trait Functor<T, U = ()> {
+    type FunctorOut: Functor<U>;
+    fn fmap(m: Self, func: impl Fn(T) -> U + Send + 'static) -> Self::FunctorOut;
 }
 
 /// Global `fmap` function
@@ -63,7 +63,7 @@ pub trait Functor<'a, T, U = ()> {
 ///  assert_eq!(fmap(Some(3), |i| i + 4), Some(7));
 ///  assert_eq!(fmap(vec![3, 4], |i| i + 4), vec![7, 8]);
 /// ```
-pub fn fmap<'a, A: Functor<'a, T, U>, T, U>(a: A, func: impl Fn(T) -> U + Send + 'a) -> A::F {
+pub fn fmap<A: Functor<T, U>, T, U>(a: A, func: impl Fn(T) -> U + Send + 'static) -> A::FunctorOut {
     A::fmap(a, func)
 }
 

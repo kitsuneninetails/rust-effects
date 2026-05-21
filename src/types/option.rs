@@ -1,58 +1,61 @@
 use crate::prelude::typeclasses::*;
 
-impl<A: Semigroup> Monoid for Option<A> {
+impl<A: Monoid> Monoid for Option<A> {
     fn empty() -> Self {
+        None
+    }
+    fn empty_m() -> Self {
         None
     }
 }
 
-impl<A: Semigroup> Semigroup for Option<A> {
+impl<A: Monoid> Semigroup for Option<A> {
     fn combine(a: Self, b: Self) -> Self {
         match (a, b) {
             (Some(t), Some(u)) => Some(combine(t, u)),
-            (Some(t), None) => Some(t),
-            (None, Some(u)) => Some(u),
+            (Some(t), None) => Some(A::combine(t, A::empty())),
+            (None, Some(u)) => Some(A::combine(u, A::empty())),
             (None, None) => None,
         }
     }
     fn combine_m(a: Self, b: Self) -> Self {
         match (a, b) {
             (Some(t), Some(u)) => Some(combine_m(t, u)),
-            (Some(t), None) => Some(t),
-            (None, Some(u)) => Some(u),
+            (Some(t), None) => Some(A::combine_m(t, A::empty_m())),
+            (None, Some(u)) => Some(A::combine_m(u, A::empty_m())),
             (None, None) => None,
         }
     }
 }
 
-impl<'a, T, U> Functor<'a, T, U> for Option<T> {
-    type F = Option<U>;
-    fn fmap(m: Self, func: impl FnOnce(T) -> U + Send + 'a) -> Self::F {
+impl<T, U> Functor<T, U> for Option<T> {
+    type FunctorOut = Option<U>;
+    fn fmap(m: Self, func: impl FnOnce(T) -> U + Send) -> Self::FunctorOut {
         m.map(func)
     }
 }
 
-impl<'a, T, U> Applicative<'a, T, U> for Option<T> {
+impl<T, U> Applicative<T, U> for Option<T> {
     fn pure(a: T) -> Self {
         Some(a)
     }
 }
 
-impl<'a, F, T, U> ApplicativeFunctor<'a, F, T, U> for Option<T>
+impl<F, T, U> ApplicativeFunctor<F, T, U> for Option<T>
 where
     F: Fn(T) -> U,
-    T: Send + Clone + 'a,
+    T: Send + Clone,
 {
-    type AOut = Option<U>;
-    type AFunc = Option<F>;
-    fn seq(m: Self, func: Self::AFunc) -> Self::AOut {
+    type AppFuncOut = Option<U>;
+    type AppFuncFn = Option<F>;
+    fn seq(m: Self, func: Self::AppFuncFn) -> Self::AppFuncOut {
         func.and_then(|f| m.map(|t| f(t)))
     }
 }
 
-impl<'a, T: Send + 'a, U: Send + 'a> Monad<'a, T, U> for Option<T> {
-    type M = Option<U>;
-    fn bind(m: Self, func: impl FnOnce(T) -> Self::M + Send + 'a) -> Self::M {
+impl<T: Send, U: Send> Monad<T, U> for Option<T> {
+    type MonadOut = Option<U>;
+    fn bind(m: Self, func: impl FnOnce(T) -> Self::MonadOut + Send) -> Self::MonadOut {
         m.and_then(func)
     }
 }
@@ -110,7 +113,7 @@ mod test {
         assert!(seq(None, func_none).is_none());
     }
 
-    fn empty_if_even<'a, M: Monad<'a, u32> + Monoid + Applicative<'a, u32>>(input: String) -> M {
+    fn empty_if_even<M: Monad<u32> + Monoid + Applicative<u32>>(input: String) -> M {
         if input.len() % 2 == 0 {
             M::empty()
         } else {

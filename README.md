@@ -360,12 +360,12 @@ Each trait derivation implements these functions, but there is also a global hel
 which can be used (Rust type inference can usually figure out the generic type parameters):
 
 ```
-fmap<'a, T, U, A: Functor<'a, T, U>>(a: A, func: impl Fn(T) -> U + Send + 'a) -> A::F
+fmap<T, U, A: Functor<T, U>>(a: A, func: impl Fn(T) -> U + Send + 'static) -> A::FunctorOut
 ```
 
->*Note: Type A::F is defined by the specific Functor implementation.  A::F is the output
->Functor type and is defined as Functor\<U> (where the Functor wrapper type is the same
->as the source's).*
+>*Note: Type A::FunctorOut is defined by the specific Functor implementation.  
+>A::FunctorOut is the output Functor type and is defined as Functor\<U> 
+>(where the Functor wrapper type is the same as the source's).*
 
 ***Implementations***
 
@@ -399,7 +399,7 @@ Each trait derivation implements these functions, but there is also a global hel
 which can be used (Rust type inference can usually figure out the generic type parameters):
 
 ```
-fn pure<'a, A: Applicative<'a, T>, T>(t: T) -> A
+fn pure<'a, A: Applicative<T>, T>(t: T) -> A
 ```
 
 ***Implementations***
@@ -460,16 +460,17 @@ Each trait derivation implements these functions, but there is also a global hel
 which can be used (Rust type inference can usually figure out the generic type parameters):
 
 ```
-fn seq<'a, N, M, T, U>(m: N, func: N::AFunc) -> N::AOut
+fn seq<'a, N, M, T, U>(m: N, func: N::AppFuncFn) -> N::AppFuncOut
 where
-    N: ApplicativeFunctor<'a, M, T, U>,
+    N: ApplicativeFunctor<M, T, U>,
     M: Fn(T) -> U,
 ```
->*Note: Type N::AFunc and N::AOut are defined by the specific ApplicativeFunctor implementation.
->N::AFunc is the wrapper of the function parameter: Functor<impl Fn(T) -> U.  N::AOut
->is the wrapper of the output of seq as ApplicativeFunctor\<U>.  In implementations, these
+>*Note: Type N::AppFuncFn and N::AppFuncOut are defined by the specific 
+>ApplicativeFunctor implementation.  N::AppFuncFn is the wrapper of the 
+> function parameter: Functor<impl Fn(T) -> U.  N::AppFuncOut is the 
+< wrapper of the output of seq as ApplicativeFunctor\<U>.  In implementations, these
 >are always defined to be the same type constructor as the implementation (for example, Option's
->implementation sets N::AFunc to Option<M> ande N::AOut to Option\<U>).*
+>implementation sets N::AppFuncFn to Option<M> ande N::AppFuncOut to Option\<U>).*
 
 ***Implementations***
 
@@ -591,35 +592,36 @@ Each trait derivation implements these functions, but there are also a global he
 which can be used (Rust type inference can usually figure out the generic type parameters):
 
 ```
-pub fn bind<'a, T: Send + 'a, U: Send + 'a, M: Monad<'a, T, U>>(
+pub fn bind<'a, T: Send + 'a, U: Send + 'a, M: Monad<T, U>>(
     m: M,
     func: impl Fn(T) -> M::M + Send + 'a,
-) -> M::M;
+) -> M::MonadOut;
 ```
->*Note: M::M is the output Monad type and is defined by the Monad implementation as Monad\<U>*
+>*Note: M::MonadOut is the output Monad type and is defined by the Monad 
+>implementation as Monad\<U>*
 
 ```
 pub fn lift_m1<'a, In, S, T>(func: impl Fn(S) -> T + Send + Clone + 'a) 
-  -> impl Fn(In) -> In::M
+  -> impl Fn(In) -> In::MonadOut
 where
-    In: Monad<'a, S, T>,
+    In: Monad<S, T>,
     S: Send + 'a,
 
 pub fn lift_m2<'a, In1, In2, S2, S1, T>(
     func: impl Fn(S1, S2) -> T + Send + Clone + 'a,
 ) 
-  -> impl Fn(In1, In2) -> In1::M
+  -> impl Fn(In1, In2) -> In1::MonadOut
 where
-    In1: Monad<'a, S1, T> + Send + Clone + 'a,
-    In2: Monad<'a, S2, T, M = In1::M> + Send + Clone + 'a,
+    In1: Monad<S1, T> + Send + Clone + 'a,
+    In2: Monad<S2, T, MonadOut = In1::MonadOut> + Send + Clone + 'a,
     S2: Send + Clone + 'a,
     S1: Send + Clone + 'a,
 
 ```
->*Note: The In::M (or In1::M, In2::M) is defined by Inpout Monads to be set to the 
->type of the lift's output (the contained type corresponds to type T).  In the case 
->of `lift_m2`, In1 and In2 must be the same Monad, therefore the M type will be 
->identical.*
+>*Note: The In::MonadOut (or In1::MonadOut, In2::MonadOut) is defined by Inpout 
+>Monads to be set to the type of the lift's output (the contained type corresponds 
+>to type T).  In the case of `lift_m2`, In1 and In2 must be the same Monad, 
+>therefore the M type will be identical.*
 
 The lift functions are very verbose to use from the trait, so the general functions are
 recommended.  Even though there are a lot of type parameters, most can be set as `_` as the

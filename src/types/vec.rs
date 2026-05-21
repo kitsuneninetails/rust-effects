@@ -13,36 +13,36 @@ impl<A> Semigroup for Vec<A> {
     }
 }
 
-impl<'a, T, U: Send> Functor<'a, T, U> for Vec<T> {
-    type F = Vec<U>;
-    fn fmap(m: Self, func: impl Fn(T) -> U + Send + 'a) -> Self::F {
+impl<T, U: Send> Functor<T, U> for Vec<T> {
+    type FunctorOut = Vec<U>;
+    fn fmap(m: Self, func: impl Fn(T) -> U + Send) -> Self::FunctorOut {
         m.into_iter().map(func).collect()
     }
 }
 
-impl<'a, T: Send, U: Send> Applicative<'a, T, U> for Vec<T> {
+impl<T: Send, U: Send> Applicative<T, U> for Vec<T> {
     fn pure(a: T) -> Self {
         vec![a]
     }
 }
 
-impl<'a, F, T, U: Send> ApplicativeFunctor<'a, F, T, U> for Vec<T>
+impl<F, T, U: Send> ApplicativeFunctor<F, T, U> for Vec<T>
 where
     F: Fn(T) -> U,
-    T: Send + Clone + 'a,
+    T: Send + Clone,
 {
-    type AOut = Vec<U>;
-    type AFunc = Vec<F>;
-    fn seq(m: Self, func: Self::AFunc) -> Self::AOut {
+    type AppFuncOut = Vec<U>;
+    type AppFuncFn = Vec<F>;
+    fn seq(m: Self, func: Self::AppFuncFn) -> Self::AppFuncOut {
         func.iter()
             .flat_map(|f| m.iter().map(|i| f(i.clone())).collect::<Vec<U>>())
             .collect()
     }
 }
 
-impl<'a, T: Send, U: 'a + Send> Monad<'a, T, U> for Vec<T> {
-    type M = Vec<U>;
-    fn bind(m: Self, func: impl Fn(T) -> Self::M + Send + 'a) -> Self::M {
+impl<T: Send, U: Send> Monad<T, U> for Vec<T> {
+    type MonadOut = Vec<U>;
+    fn bind(m: Self, func: impl Fn(T) -> Self::MonadOut + Send) -> Self::MonadOut {
         m.into_iter().flat_map(func).collect()
     }
 }
@@ -85,7 +85,7 @@ mod test {
         assert_eq!(seq(vec![3u32, 4, 5], func), vec![5, 6, 7, 6, 7, 8]);
     }
 
-    fn empty_if_even<'a, M: Monad<'a, u32> + Monoid + Applicative<'a, u32>>(input: String) -> M {
+    fn empty_if_even<M: Monad<u32> + Monoid + Applicative<u32>>(input: String) -> M {
         if input.len() % 2 == 0 {
             M::empty()
         } else {

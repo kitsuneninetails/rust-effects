@@ -15,7 +15,6 @@ use paste::paste;
 /// ```rust
 /// use rust_effects::prelude::*;
 /// struct MyType(u32);
-///
 /// impl Semigroup for MyType {
 ///   fn combine(a: Self, b: Self) -> Self {
 ///     MyType(a.0 + b.0)
@@ -25,7 +24,6 @@ use paste::paste;
 ///     MyType(a.0 * b.0)
 ///   }
 /// }
-///
 /// impl Monoid for MyType {
 ///     fn empty() -> Self {
 ///         MyType(u32::empty())

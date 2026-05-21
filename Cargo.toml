@@ -10,6 +10,6 @@ name="hkt-like"
 [dependencies]
 num-traits = "*"
 futures-util = "*"
-futures = "*"
+futures = {version = "*", features = ["std"] }
 paste = "*"
 tokio = { version = "*", features = ["full"] }

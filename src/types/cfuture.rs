@@ -1,25 +1,28 @@
 use crate::prelude::typeclasses::*;
-use futures::future::{Shared, lazy};
-use futures_util::{FutureExt, future::BoxFuture};
+use futures::future::{BoxFuture, Shared, lazy};
+use futures_util::FutureExt;
 
 #[derive(Clone)]
-pub struct CFuture<'a, A: Clone + Send + Sync> {
-    inner: Shared<BoxFuture<'a, A>>,
+pub struct CFuture<A> {
+    inner: Shared<BoxFuture<'static, A>>,
 }
 
-impl<'a, A: Clone + Send + Sync + 'a> CFuture<'a, A> {
-    pub fn lazy(val: A) -> Self {
-        CFuture::new_fut(lazy(move |_| val))
+impl<A: Clone + Sync + Send + 'static> CFuture<A> {
+    pub fn lazy(val: A) -> CFuture<A> {
+        CFuture::new(lazy(|_| val))
     }
 
-    pub fn new_fut(inner: impl Future<Output = A> + Send + 'a) -> Self {
+    pub fn new(fut: impl Future<Output = A> + Send + 'static) -> CFuture<A> {
         CFuture {
-            inner: inner.boxed().shared(),
+            inner: fut.boxed().shared(),
         }
     }
 }
 
-impl<'a, A: Clone + Send + Sync> Future for CFuture<'a, A> {
+impl<A> Future for CFuture<A>
+where
+    A: Clone + Send + Sync,
+{
     type Output = A;
     fn poll(
         mut self: std::pin::Pin<&mut Self>,
@@ -29,70 +32,82 @@ impl<'a, A: Clone + Send + Sync> Future for CFuture<'a, A> {
     }
 }
 
-unsafe impl<'a, A: Clone + Send + Sync> Send for CFuture<'a, A> {}
-unsafe impl<'a, A: Clone + Send + Sync> Sync for CFuture<'a, A> {}
+unsafe impl<A> Send for CFuture<A> where A: Clone + Send + Sync {}
+unsafe impl<A> Sync for CFuture<A> where A: Clone + Send + Sync {}
 
-impl<'a, A: Monoid + Send + Sync + Clone + 'a> Monoid for CFuture<'a, A> {
+impl<A> Monoid for CFuture<A>
+where
+    A: Monoid + Clone + Send + Sync + 'static,
+{
     fn empty() -> Self {
-        CFuture::new_fut(lazy(|_| A::empty()))
+        CFuture::lazy(A::empty())
     }
     fn empty_m() -> Self {
-        CFuture::new_fut(lazy(|_| A::empty_m()))
+        CFuture::lazy(A::empty_m())
     }
 }
 
-impl<'a, A: 'a + Send + Sync + Clone + Semigroup> Semigroup for CFuture<'a, A> {
+impl<A> Semigroup for CFuture<A>
+where
+    A: Semigroup + Clone + Send + Sync + 'static,
+{
     fn combine(a: Self, b: Self) -> Self {
-        let new_fut = a
+        let f = a
             .inner
             .then(move |a_res| b.inner.map(move |b_res| A::combine(a_res, b_res)));
-        CFuture::new_fut(new_fut)
+        CFuture::new(f)
     }
     fn combine_m(a: Self, b: Self) -> Self {
-        let new_fut = a
+        let f = a
             .inner
             .then(move |a_res| b.inner.map(move |b_res| A::combine_m(a_res, b_res)));
-        CFuture::new_fut(new_fut)
+        CFuture::new(f)
     }
 }
 
-impl<'a, T: Send + Sync + Clone + 'a, U: Send + Sync + Clone + 'a> Functor<'a, T, U>
-    for CFuture<'a, T>
+impl<T, U> Functor<T, U> for CFuture<T>
+where
+    T: Send + Sync + Clone + 'static,
+    U: Send + Sync + Clone + 'static,
 {
-    type F = CFuture<'a, U>;
-    fn fmap(m: Self, func: impl FnOnce(T) -> U + Send + 'a) -> Self::F {
-        CFuture::new_fut(m.map(func))
+    type FunctorOut = CFuture<U>;
+    fn fmap(m: Self, func: impl FnOnce(T) -> U + Send + 'static) -> Self::FunctorOut {
+        CFuture::new(m.map(func))
     }
 }
 
-impl<'a, T: Send + Sync + Clone + 'a, U: Send + Sync + Clone + 'a> Applicative<'a, T, U>
-    for CFuture<'a, T>
+impl<T, U> Applicative<T, U> for CFuture<T>
+where
+    T: Send + Sync + Clone + 'static,
+    U: Send + Sync + Clone + 'static,
 {
     fn pure(a: T) -> Self {
-        CFuture::new_fut(lazy(move |_| a))
+        CFuture::lazy(a)
     }
 }
 
-impl<'a, F, T, U> ApplicativeFunctor<'a, F, T, U> for CFuture<'a, T>
+impl<F, T, U> ApplicativeFunctor<F, T, U> for CFuture<T>
 where
-    F: Fn(T) -> U + Sync + Send + Clone + 'a,
-    T: Send + Clone + Sync + 'a,
-    U: Send + Clone + Sync + 'a,
+    F: Fn(T) -> U + Sync + Send + Clone + 'static,
+    T: Send + Clone + Sync + 'static,
+    U: Send + Clone + Sync + 'static,
 {
-    type AOut = CFuture<'a, U>;
-    type AFunc = CFuture<'a, F>;
-    fn seq(m: Self, func: Self::AFunc) -> Self::AOut {
+    type AppFuncOut = CFuture<U>;
+    type AppFuncFn = CFuture<F>;
+    fn seq(m: Self, func: Self::AppFuncFn) -> Self::AppFuncOut {
         let in_f = func;
-        CFuture::new_fut(async { in_f.await(m.await) })
+        CFuture::new(async { in_f.await(m.await) })
     }
 }
 
-impl<'a, T: Send + Sync + Clone + 'a, U: Send + Sync + Clone + 'a> Monad<'a, T, U>
-    for CFuture<'a, T>
+impl<T, U> Monad<T, U> for CFuture<T>
+where
+    T: Send + Sync + Clone + 'static,
+    U: Send + Sync + Clone + 'static,
 {
-    type M = CFuture<'a, U>;
-    fn bind(m: Self, func: impl FnOnce(T) -> Self::M + Send + 'a) -> Self::M {
-        CFuture::new_fut(m.then(func))
+    type MonadOut = CFuture<U>;
+    fn bind(m: Self, func: impl FnOnce(T) -> Self::MonadOut + Send + 'static) -> Self::MonadOut {
+        CFuture::new(m.then(func))
     }
 }
 
@@ -152,7 +167,7 @@ mod test {
         assert_eq!(seq(CFuture::lazy(3), func).await, 7);
     }
 
-    fn empty_if_even<'a, M: Monad<'a, u32> + Monoid + Applicative<'a, u32>>(input: String) -> M {
+    fn empty_if_even<'a, M: Monad<u32> + Monoid + Applicative<u32>>(input: String) -> M {
         if input.len() % 2 == 0 {
             M::empty()
         } else {

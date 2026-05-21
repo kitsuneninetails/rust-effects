@@ -17,12 +17,12 @@ use crate::typeclasses::applicative::Applicative;
 /// it (such as null data no longer having functions run, etc.).
 ///
 /// To implement the `Monad` type class, a deriving type must first declare the
-/// `M` type, which will be the output of the `bind` function.  This is almost always
+/// `MonadOut` type, which will be the output of the `bind` function.  This is almost always
 /// the deriving type parameterized on `U` instead of `T`.  Then, the `bind` function
 /// must be implemented.  The first argument is the source type constructor, which
 /// will be the deriving type parameterized on `T`.  The second argument is the
 /// function to bind to the source, which should take data of type `T` and return
-/// the type constructor parameterized on `U` (the `Self::M`` type defined above).
+/// the type constructor parameterized on `U` (the `Self::MonadOut`` type defined above).
 /// The behavior of the `bind` should be to apply to function to the source type
 /// constructor should the source's state allow it.  The return of the `bind` will
 /// then replace the source in the chain of calls, meaning the original source will
@@ -39,20 +39,20 @@ use crate::typeclasses::applicative::Applicative;
 /// use rust_effects::prelude::*;
 /// struct MyStruct<T>(T);
 ///
-/// impl<'a, T, U> Functor<'a, T, U> for MyStruct<T> {
-///   type F = MyStruct<U>;
-///   fn fmap(m: Self, func: impl Fn(T) -> U + Send + 'a) -> Self::F {
+/// impl<T, U> Functor<T, U> for MyStruct<T> {
+///   type FunctorOut = MyStruct<U>;
+///   fn fmap(m: Self, func: impl Fn(T) -> U + Send) -> Self::FunctorOut {
 ///     MyStruct(func(m.0))
 ///   }
 /// }
-/// impl<'a, T, U> Applicative<'a, T, U> for MyStruct<T> {
+/// impl<T, U> Applicative<T, U> for MyStruct<T> {
 ///   fn pure(a: T) -> Self {
 ///     MyStruct(a)
 ///   }
 /// }
-/// impl<'a, T: Send + 'a, U: Send + 'a> Monad<'a, T, U> for MyStruct<T> {
-///     type M = MyStruct<U>;
-///     fn bind(m: Self, func: impl FnOnce(T) -> Self::M + Send + 'a) -> Self::M {
+/// impl<T: Send, U: Send> Monad<T, U> for MyStruct<T> {
+///     type MonadOut = MyStruct<U>;
+///     fn bind(m: Self, func: impl FnOnce(T) -> Self::MonadOut + Send) -> Self::MonadOut {
 ///         func(m.0)
 ///     }
 /// }
@@ -61,7 +61,7 @@ use crate::typeclasses::applicative::Applicative;
 /// The other two functions provided in the type class, `lift_m1` and `lift_m2`, are
 /// used to `lift` regular functions into the context of the related `Monad`
 /// implementation.  A normal function would just take data of `T` and return `U`,
-/// but once lifted with `lift_m1`, it would take `M<T>` and return `M<U>`.  
+/// but once lifted with `lift_m1`, it would take `MonadOut<T>` and return `MonadOut<U>`.  
 /// Similarly, the `lift_m2`, the normal function would take two arguments and return
 /// a new type, but the lifted function would take two pieces of data wrapped in the
 /// `Monad` implementation and return an answer also wrapped.
@@ -73,21 +73,21 @@ use crate::typeclasses::applicative::Applicative;
 /// not be used.  Instead, use the global `lift_m1` and `lift_m2` functions/macros, as
 /// they will have better ability for type inference and be much easier to use
 /// effectively.
-pub trait Monad<'a, T, U = ()>: Sized + Applicative<'a, T, U, F = Self::M> {
-    type M: Monad<'a, U> + Send;
-    fn bind(m: Self, func: impl Fn(T) -> Self::M + Send + 'a) -> Self::M;
-    fn lift_m1<S: Send + 'a, In: Monad<'a, S, T, M = Self>>(
-        func: impl Fn(S) -> T + Send + Clone + 'a,
+pub trait Monad<T, U = ()>: Sized + Applicative<T, U, FunctorOut = Self::MonadOut> {
+    type MonadOut: Monad<U> + Send;
+    fn bind(m: Self, func: impl Fn(T) -> Self::MonadOut + Send + 'static) -> Self::MonadOut;
+    fn lift_m1<S: Send, In: Monad<S, T, MonadOut = Self>>(
+        func: impl Fn(S) -> T + Send + Clone + 'static,
     ) -> impl Fn(In) -> Self {
         move |n: In| In::fmap(n, func.clone())
     }
     fn lift_m2<
-        S1: Send + Clone + 'a,
-        In1: Monad<'a, S1, T, M = Self> + Send + 'a,
-        S2: Send + 'a,
-        In2: Monad<'a, S2, T, M = Self> + Send + Clone + 'a,
+        S1: Send + Clone + 'static,
+        In1: Monad<S1, T, MonadOut = Self> + Send + 'static,
+        S2: Send,
+        In2: Monad<S2, T, MonadOut = Self> + Send + Clone + 'static,
     >(
-        func: impl Fn(S1, S2) -> T + Send + Clone + 'a,
+        func: impl Fn(S1, S2) -> T + Send + Clone + 'static,
     ) -> impl Fn(In1, In2) -> Self {
         move |in1: In1, in2: In2| {
             let fnc_tmp = func.clone();
@@ -99,10 +99,10 @@ pub trait Monad<'a, T, U = ()>: Sized + Applicative<'a, T, U, F = Self::M> {
     }
 }
 
-pub fn bind<'a, M: Monad<'a, T, U>, T: Send + 'a, U: Send + 'a>(
+pub fn bind<'a, M: Monad<T, U>, T: Send + 'a, U: Send + 'a>(
     m: M,
-    func: impl Fn(T) -> M::M + Send + 'a,
-) -> M::M {
+    func: impl Fn(T) -> M::MonadOut + Send + 'a + 'static,
+) -> M::MonadOut {
     M::bind(m, func)
 }
 
@@ -135,12 +135,14 @@ pub fn bind<'a, M: Monad<'a, T, U>, T: Send + 'a, U: Send + 'a>(
 /// assert_eq!(nilable_add4(Some(3)), Some(7));
 /// assert_eq!(nilable_add4(None), None);
 /// ```
-pub fn lift_m1<'a, In, S, T>(func: impl Fn(S) -> T + Send + Clone + 'a) -> impl Fn(In) -> In::M
+pub fn lift_m1<In, S, T>(
+    func: impl Fn(S) -> T + Send + Clone + 'static,
+) -> impl Fn(In) -> In::MonadOut
 where
-    In: Monad<'a, S, T>,
-    S: Send + 'a,
+    In: Monad<S, T>,
+    S: Send,
 {
-    In::M::lift_m1(func)
+    In::MonadOut::lift_m1(func)
 }
 
 #[macro_export]
@@ -182,21 +184,21 @@ macro_rules! lift_m1 {
 /// assert_eq!(nilable_add(Some(3), Some(4)), Some(7));
 /// assert_eq!(nilable_add(Some(3), None), None);
 /// ```
-/// 
+///
 /// Note that the `lift_m2` function does NOT provide `combine` mechanics, even though
 /// it has two parameters.  The point is to provide the context of the `Monad` to the
 /// function, meaning that it will act more like a `bind` then `fmap` (in fact, this
 /// is the default implementation of `lift_m2`), instead of a `combine`.
-pub fn lift_m2<'a, In1, In2, S2, S1, T>(
-    func: impl Fn(S1, S2) -> T + Send + Clone + 'a,
-) -> impl Fn(In1, In2) -> In1::M
+pub fn lift_m2<In1, In2, S2, S1, T>(
+    func: impl Fn(S1, S2) -> T + Send + Clone + 'static,
+) -> impl Fn(In1, In2) -> In1::MonadOut
 where
-    In1: Monad<'a, S1, T> + Send + Clone + 'a,
-    In2: Monad<'a, S2, T, M = In1::M> + Send + Clone + 'a,
-    S2: Send + Clone + 'a,
-    S1: Send + Clone + 'a,
+    In1: Monad<S1, T> + Send + Clone + 'static,
+    In2: Monad<S2, T, MonadOut = In1::MonadOut> + Send + Clone + 'static,
+    S2: Send + Clone,
+    S1: Send + Clone + 'static,
 {
-    In1::M::lift_m2(func)
+    In1::MonadOut::lift_m2(func)
 }
 
 #[macro_export]

@@ -32,7 +32,7 @@
 pub trait Semigroup: Sized {
     fn combine(a: Self, b: Self) -> Self;
     fn combine_m(a: Self, b: Self) -> Self {
-        combine(a, b)
+        Self::combine(a, b)
     }
 }
 
@@ -68,6 +68,7 @@ impl Semigroup for () {
         ()
     }
 }
+
 impl Semigroup for String {
     fn combine(a: Self, b: Self) -> Self {
         a + &b

@@ -33,19 +33,19 @@ use crate::typeclasses::functor::Functor;
 /// use rust_effects::prelude::*;
 /// struct MyStruct<T>(T);
 ///
-/// impl<'a, T, U> Functor<'a, T, U> for MyStruct<T> {
-///   type F = MyStruct<U>;
-///   fn fmap(m: Self, func: impl Fn(T) -> U + Send + 'a) -> Self::F {
+/// impl<T, U> Functor<T, U> for MyStruct<T> {
+///   type FunctorOut = MyStruct<U>;
+///   fn fmap(m: Self, func: impl Fn(T) -> U + Send) -> Self::FunctorOut {
 ///     MyStruct(func(m.0))
 ///   }
 /// }
-/// impl<'a, T, U> Applicative<'a, T, U> for MyStruct<T> {
+/// impl<T, U> Applicative<T, U> for MyStruct<T> {
 ///   fn pure(a: T) -> Self {
 ///     MyStruct(a)
 ///   }
 /// }
 /// ```
-pub trait Applicative<'a, T, U = ()>: Functor<'a, T, U> {
+pub trait Applicative<T, U = ()>: Functor<T, U> {
     fn pure(a: T) -> Self;
 }
 
@@ -92,7 +92,7 @@ pub trait Applicative<'a, T, U = ()>: Functor<'a, T, U> {
 ///   use rust_effects::{prelude::pure};
 ///   assert_eq!(pure![Option](2), Some(2));
 /// ```
-pub fn pure<'a, A: Applicative<'a, T>, T>(t: T) -> A {
+pub fn pure<A: Applicative<T>, T>(t: T) -> A {
     A::pure(t)
 }
 
