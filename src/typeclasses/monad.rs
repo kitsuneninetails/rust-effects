@@ -74,7 +74,7 @@ use crate::typeclasses::applicative::Applicative;
 /// they will have better ability for type inference and be much easier to use
 /// effectively.
 pub trait Monad<T, U = ()>: Sized + Applicative<T, U, FunctorOut = Self::MonadOut> {
-    type MonadOut: Monad<U> + Send;
+    type MonadOut: Monad<U, U> + Send;
     fn bind(m: Self, func: impl Fn(T) -> Self::MonadOut + Send + 'static) -> Self::MonadOut;
     fn lift_m1<S: Send, In: Monad<S, T, MonadOut = Self>>(
         func: impl Fn(S) -> T + Send + Clone + 'static,
