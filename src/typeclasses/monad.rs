@@ -50,7 +50,8 @@ use crate::typeclasses::applicative::Applicative;
 ///     MyStruct(a)
 ///   }
 /// }
-/// impl<T: Send, U: Send> Monad<T, U> for MyStruct<T> {
+/// impl<T: Send, U: Send> Monad<U> for MyStruct<T> {
+///     type T = T;
 ///     type MonadOut = MyStruct<U>;
 ///     fn bind(m: Self, func: impl FnOnce(T) -> Self::MonadOut + Send) -> Self::MonadOut {
 ///         func(m.0)
@@ -73,35 +74,37 @@ use crate::typeclasses::applicative::Applicative;
 /// not be used.  Instead, use the global `lift_m1` and `lift_m2` functions/macros, as
 /// they will have better ability for type inference and be much easier to use
 /// effectively.
-pub trait Monad<T, U = ()>: Sized + Applicative<T, U, FunctorOut = Self::MonadOut> {
-    type MonadOut: Monad<U, U> + Send;
-    fn bind(m: Self, func: impl Fn(T) -> Self::MonadOut + Send + 'static) -> Self::MonadOut;
-    fn lift_m1<S: Send, In: Monad<S, T, MonadOut = Self>>(
-        func: impl Fn(S) -> T + Send + Clone + 'static,
-    ) -> impl Fn(In) -> Self {
+pub trait Monad<U = ()>: Sized + Applicative<Self::T, U, FunctorOut = Self::MonadOut> {
+    type T;
+    type MonadOut: Monad<U> + Send;
+    fn bind(m: Self, func: impl Fn(Self::T) -> Self::MonadOut + Send + 'static) -> Self::MonadOut;
+    fn lift_m1<In>(func: impl Fn(In::T) -> Self::T + Send + Clone + 'static) -> impl Fn(In) -> Self
+    where
+        In: Monad<Self::T, MonadOut = Self>,
+    {
         move |n: In| In::fmap(n, func.clone())
     }
-    fn lift_m2<
-        S1: Send + Clone + 'static,
-        In1: Monad<S1, T, MonadOut = Self> + Send + 'static,
-        S2: Send,
-        In2: Monad<S2, T, MonadOut = Self> + Send + Clone + 'static,
-    >(
-        func: impl Fn(S1, S2) -> T + Send + Clone + 'static,
-    ) -> impl Fn(In1, In2) -> Self {
+    fn lift_m2<In1, In2>(
+        func: impl Fn(In1::T, In2::T) -> Self::T + Send + Clone + 'static,
+    ) -> impl Fn(In1, In2) -> Self
+    where
+        In1: Monad<Self::T, MonadOut = Self> + Send + 'static,
+        In2: Monad<Self::T, MonadOut = Self> + Send + Clone + 'static,
+        In1::T: Clone + Send + 'static,
+    {
         move |in1: In1, in2: In2| {
             let fnc_tmp = func.clone();
-            In1::bind(in1, move |s1: S1| {
+            In1::bind(in1, move |s1: In1::T| {
                 let tmp = fnc_tmp.clone();
-                In2::fmap(in2.clone(), move |s2: S2| tmp.clone()(s1.clone(), s2))
+                In2::fmap(in2.clone(), move |s2: In2::T| tmp.clone()(s1.clone(), s2))
             })
         }
     }
 }
 
-pub fn bind<'a, M: Monad<T, U>, T: Send + 'a, U: Send + 'a>(
+pub fn bind<'a, M: Monad<U>, U>(
     m: M,
-    func: impl Fn(T) -> M::MonadOut + Send + 'a + 'static,
+    func: impl Fn(M::T) -> M::MonadOut + Send + 'a + 'static,
 ) -> M::MonadOut {
     M::bind(m, func)
 }
@@ -121,7 +124,7 @@ pub fn bind<'a, M: Monad<T, U>, T: Send + 'a, U: Send + 'a>(
 ///
 /// ```rust
 /// use rust_effects::prelude::lift_m1;
-/// let nilable_add4 = lift_m1::<Option<_>, _, _>(|a| a + 4);
+/// let nilable_add4 = lift_m1::<Option<_>, _>(|a| a + 4);
 /// assert_eq!(nilable_add4(Some(3)), Some(7));
 /// assert_eq!(nilable_add4(None), None);
 /// ```
@@ -135,12 +138,13 @@ pub fn bind<'a, M: Monad<T, U>, T: Send + 'a, U: Send + 'a>(
 /// assert_eq!(nilable_add4(Some(3)), Some(7));
 /// assert_eq!(nilable_add4(None), None);
 /// ```
-pub fn lift_m1<In, S, T>(
-    func: impl Fn(S) -> T + Send + Clone + 'static,
-) -> impl Fn(In) -> In::MonadOut
+pub fn lift_m1<In, Out>(
+    func: impl Fn(In::T) -> Out::T + Send + Clone + 'static,
+) -> impl Fn(In) -> Out
 where
-    In: Monad<S, T>,
-    S: Send,
+    In: Monad<Out::T, MonadOut = Out> + Send + 'static,
+    Out: Monad,
+    In::T: Send,
 {
     In::MonadOut::lift_m1(func)
 }
@@ -148,7 +152,7 @@ where
 #[macro_export]
 macro_rules! lift_m1 {
     ($m:tt) => {
-        lift_m1::<$m<_>, _, _>
+        lift_m1::<$m<_>, _>
     };
 }
 
@@ -170,7 +174,7 @@ macro_rules! lift_m1 {
 ///
 /// ```rust
 /// use rust_effects::prelude::lift_m2;
-/// let nilable_add = lift_m2::<Option<_>, _, _, _, _>(|a, b| a + b);
+/// let nilable_add = lift_m2::<Option<_>, _, _>(|a, b| a + b);
 /// assert_eq!(nilable_add(Some(3), Some(4)), Some(7));
 /// assert_eq!(nilable_add(Some(3), None), None);
 /// ```
@@ -189,14 +193,14 @@ macro_rules! lift_m1 {
 /// it has two parameters.  The point is to provide the context of the `Monad` to the
 /// function, meaning that it will act more like a `bind` then `fmap` (in fact, this
 /// is the default implementation of `lift_m2`), instead of a `combine`.
-pub fn lift_m2<In1, In2, S2, S1, T>(
-    func: impl Fn(S1, S2) -> T + Send + Clone + 'static,
-) -> impl Fn(In1, In2) -> In1::MonadOut
+pub fn lift_m2<In1, In2, Out>(
+    func: impl Fn(In1::T, In2::T) -> Out::T + Send + Clone + 'static,
+) -> impl Fn(In1, In2) -> Out
 where
-    In1: Monad<S1, T> + Send + Clone + 'static,
-    In2: Monad<S2, T, MonadOut = In1::MonadOut> + Send + Clone + 'static,
-    S2: Send + Clone,
-    S1: Send + Clone + 'static,
+    In1: Monad<Out::T, MonadOut = Out> + Send + 'static,
+    In1::T: Clone + Send + 'static,
+    In2: Monad<Out::T, MonadOut = Out> + Clone + Send + 'static,
+    Out: Monad,
 {
     In1::MonadOut::lift_m2(func)
 }
@@ -204,7 +208,7 @@ where
 #[macro_export]
 macro_rules! lift_m2 {
     ($m:tt) => {
-        lift_m2::<$m<_>, _, _, _, _>
+        lift_m2::<$m<_>, _, _>
     };
 }
 

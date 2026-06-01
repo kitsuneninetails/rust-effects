@@ -53,7 +53,8 @@ where
     }
 }
 
-impl<T: Send, U: Send> Monad<T, U> for Option<T> {
+impl<T: Send, U: Send> Monad<U> for Option<T> {
+    type T = T;
     type MonadOut = Option<U>;
     fn bind(m: Self, func: impl FnOnce(T) -> Self::MonadOut + Send) -> Self::MonadOut {
         m.and_then(func)
@@ -133,20 +134,20 @@ mod test {
     }
     #[test]
     fn test_lift1_option() {
-        let new_func = lift_m1::<Option<_>, _, _>(add4);
+        let new_func = lift_m1::<Option<_>, _>(add4);
         assert_eq!(new_func(Some(3)), Some(7));
         assert!(new_func(None).is_none());
     }
     #[test]
     fn test_lift1_option_closure() {
         let add4_closure = |x: u32| x + 4;
-        let new_func = lift_m1::<Option<_>, _, _>(add4_closure);
+        let new_func = lift_m1::<Option<_>, _>(add4_closure);
         assert_eq!(new_func(Some(3)), Some(7));
         assert!(new_func(None).is_none());
     }
     #[test]
     fn test_lift1_option_closure_as_param() {
-        let new_func = lift_m1::<Option<_>, _, _>(|x: u32| x + 4);
+        let new_func = lift_m1::<Option<_>, _>(|x: u32| x + 4);
         assert_eq!(new_func(Some(3)), Some(7));
         assert!(new_func(None).is_none());
     }
@@ -157,7 +158,7 @@ mod test {
 
     #[test]
     fn test_lift2_option() {
-        let new_func = lift_m2::<Option<_>, _, _, _, _>(add2);
+        let new_func = lift_m2::<Option<_>, _, _>(add2);
         assert_eq!(new_func(Some(3), Some(4)), Some(7));
         assert!(new_func(Some(3), None).is_none());
         assert!(new_func(None, Some(4)).is_none());

@@ -53,7 +53,8 @@ where
     }
 }
 
-impl<T, U: Send, E: Send> Monad<T, U> for Result<T, E> {
+impl<T, U: Send, E: Send> Monad<U> for Result<T, E> {
+    type T = T;
     type MonadOut = Result<U, E>;
     fn bind(m: Self, func: impl FnOnce(T) -> Self::MonadOut + Send) -> Self::MonadOut {
         m.and_then(func)
@@ -140,7 +141,7 @@ mod test {
     }
     #[test]
     fn test_lift1_result() {
-        let new_func = lift_m1::<Result<_, ()>, _, _>(add4);
+        let new_func = lift_m1::<Result<_, ()>, _>(add4);
         assert_eq!(new_func(Ok(3)), Ok(7));
         assert!(new_func(Err(())).is_err());
     }
@@ -150,7 +151,7 @@ mod test {
     }
     #[test]
     fn test_lift2_result() {
-        let new_func = lift_m2::<Result<_, ()>, _, _, _, _>(add2);
+        let new_func = lift_m2::<Result<_, ()>, _, _>(add2);
         assert_eq!(new_func(Ok(3), Ok(4)), Ok(7));
         assert!(new_func(Ok(3), Err(())).is_err());
         assert!(new_func(Err(()), Ok(4)).is_err());

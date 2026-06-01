@@ -1,8 +1,8 @@
 use rust_effects::prelude::*;
 
-pub fn foo<'a, M>(input: impl Monad<String, u32, MonadOut = M>) -> M
+pub fn foo<'a, M>(input: impl Monad<u32, T = String, MonadOut = M>) -> M
 where
-    M: Monad<u32, ()> + Monoid + Applicative<u32>,
+    M: Monad + Monoid + Applicative<u32>,
 {
     Monad::bind(input, |a| {
         if a.len() % 2 == 1 {
@@ -66,6 +66,6 @@ async fn main() {
     let v2: Vec<u32> = bind(v1, |i| {
         vec![(i.len() as u32), (i.matches("o").count() as u32)]
     });
-    let v3: Vec<u32> = Monad::<u32, u32>::bind(v2, |i| if i <= 4 { vec![i] } else { vec![] });
+    let v3: Vec<u32> = Monad::<u32>::bind(v2, |i| if i <= 4 { vec![i] } else { vec![] });
     println!("FREE output: {:?}", v3);
 }

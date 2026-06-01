@@ -17,9 +17,10 @@ impl<T, U> Applicative<T, U> for () {
     }
 }
 
-impl<T, U> Monad<T, U> for () {
+impl Monad for () {
+    type T = ();
     type MonadOut = ();
-    fn bind(m: Self, _func: impl Fn(T) -> Self::MonadOut + Send + 'static) -> Self::MonadOut {
+    fn bind(m: Self, _func: impl Fn(Self::T) -> Self::MonadOut + Send + 'static) -> Self::MonadOut {
         m
     }
 }

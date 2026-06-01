@@ -40,7 +40,8 @@ where
     }
 }
 
-impl<T: Send, U: Send> Monad<T, U> for Vec<T> {
+impl<T: Send, U: Send> Monad<U> for Vec<T> {
+    type T = T;
     type MonadOut = Vec<U>;
     fn bind(m: Self, func: impl Fn(T) -> Self::MonadOut + Send) -> Self::MonadOut {
         m.into_iter().flat_map(func).collect()
@@ -108,7 +109,7 @@ mod test {
 
     #[test]
     fn test_lift1_vec() {
-        let new_func = lift_m1::<Vec<_>, _, _>(add4);
+        let new_func = lift_m1::<Vec<_>, _>(add4);
         assert_eq!(new_func(vec![2, 3, 4]), vec![6, 7, 8]);
         assert!(new_func(vec![]).is_empty());
     }
@@ -118,7 +119,7 @@ mod test {
     }
     #[test]
     fn test_lift2_vec() {
-        let new_func = lift_m2::<Vec<_>, _, _, _, _>(add2);
+        let new_func = lift_m2::<Vec<_>, _, _>(add2);
         assert_eq!(
             new_func(vec![1, 2, 3], vec![4, 5, 6]),
             vec![5, 6, 7, 6, 7, 8, 7, 8, 9]

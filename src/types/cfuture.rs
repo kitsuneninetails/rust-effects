@@ -100,11 +100,12 @@ where
     }
 }
 
-impl<T, U> Monad<T, U> for CFuture<T>
+impl<T, U> Monad<U> for CFuture<T>
 where
     T: Send + Sync + Clone + 'static,
     U: Send + Sync + Clone + 'static,
 {
+    type T = T;
     type MonadOut = CFuture<U>;
     fn bind(m: Self, func: impl FnOnce(T) -> Self::MonadOut + Send + 'static) -> Self::MonadOut {
         CFuture::new(m.then(func))
@@ -192,7 +193,7 @@ mod test {
     }
     #[tokio::test]
     async fn test_lift1_future() {
-        let new_func = lift_m1::<CFuture<_>, _, _>(add4);
+        let new_func = lift_m1::<CFuture<_>, _>(add4);
         assert_eq!(new_func(CFuture::lazy(3)).await, 7);
     }
 
@@ -201,7 +202,7 @@ mod test {
     }
     #[tokio::test]
     async fn test_lift2_future() {
-        let new_func = lift_m2::<CFuture<_>, _, _, _, _>(add2);
+        let new_func = lift_m2::<CFuture<_>, _, _>(add2);
         assert_eq!(new_func(CFuture::lazy(3), CFuture::lazy(4)).await, 7);
     }
 }
