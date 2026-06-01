@@ -17,13 +17,14 @@ use crate::typeclasses::applicative::Applicative;
 /// it (such as null data no longer having functions run, etc.).
 ///
 /// To implement the `Monad` type class, a deriving type must first declare the
-/// `MonadOut` type, which will be the output of the `bind` function.  This is almost always
-/// the deriving type parameterized on `U` instead of `T`.  Then, the `bind` function
-/// must be implemented.  The first argument is the source type constructor, which
-/// will be the deriving type parameterized on `T`.  The second argument is the
-/// function to bind to the source, which should take data of type `T` and return
-/// the type constructor parameterized on `U` (the `Self::MonadOut`` type defined above).
-/// The behavior of the `bind` should be to apply to function to the source type
+/// 'T' and `MonadOut` types.  The 'T' type is the type of data the Monad itself contains
+/// (as all MOn ad's must be type constructors), and 'MonadOut' is the output
+/// of the `bind` function.  This is almost always the deriving type parameterized
+/// on `U` instead of `T`.  Then, the `bind` function must be implemented.  
+/// The first argument is the source type constructor, which will be the deriving
+/// type parameterized on `T`.  The second argument is the function to bind
+/// to the source, which should take data of type `T` and return the `Self::MonadOut``
+/// type.  The behavior of the `bind` should be to apply to function to the source type
 /// constructor should the source's state allow it.  The return of the `bind` will
 /// then replace the source in the chain of calls, meaning the original source will
 /// disappear as the `bind` functions are applied.
@@ -111,11 +112,11 @@ pub fn bind<'a, M: Monad<U>, U>(
 
 /// The global `lift_m1` function
 ///
-/// Calls the `lift_m1` implementation for type `In`.
+/// Calls the `lift_m1` implementation for type `In` to return the given type 'Out'.
 ///
-/// The `lift_m1` function takes one argument: a function which converts a type `T` to
-/// `U` (`T` and `U` can be the same).  The return will be a function which converts `In<T>`
-/// to `In<U>` (declared as the trait type `In::M`) using the rules of `In`'s `fmap`
+/// The `lift_m1` function takes one argument: a function which converts the In::T type to
+/// Out::T type (they can be the same).  The return will be a function which converts `In<T>`
+/// to `Out` (declared to be the same as `In::MonadOut`) using the rules of `In`'s `fmap`
 /// operation.
 ///
 /// Using the function does mean the type parameters will need to be supplied, as it's not
@@ -158,15 +159,15 @@ macro_rules! lift_m1 {
 
 /// The global `lift_m2` function
 ///
-/// Calls the `lift_m2` implementation for type `In`.
+/// Calls the `lift_m2` implementation for type `In1`.
 ///
 /// The `lift_m2` function operates exactly like `lift_m1` except the provided function
-/// takes two arguments, typed `S` and `T` and returns a third type `U`.  The lifted
+/// takes two arguments of `In1::T` and `In2::T type respectively.  The lifted
 /// function, likewise, takes two arguments, typed as `In1` and `In2`, which must be
-/// the samne `Monad` implementation, typed as `In<S>` and `In<T>`.  The return is the
-/// type `In1<U>` which was declared as the `In1::M` trait type.  Thus, the three `Monad`
-/// implementations should be the same container, although the contained type is
-/// different.
+/// the samne `Monad` implementation, typed as `In1` and `In2`.  The return is the
+/// type `Out` which was declared to be the same as as the `In1::MonadOut` trait type.  
+/// Thus, the three `Monad` implementations should be the same container, although the
+/// contained type is different from the In1/In2 and the Out.
 ///
 /// Like `lift_m1`, the type parameters will need to be supplied, as it's not possible
 /// for the type inference to figure it out without explicit hints (such as typing the
