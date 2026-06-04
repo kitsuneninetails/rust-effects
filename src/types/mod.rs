@@ -5,22 +5,27 @@ pub mod vec;
 
 use crate::typeclasses::{applicative::Applicative, functor::Functor, monad::Monad};
 
-impl<T, U> Functor<T, U> for () {
+impl<U> Functor<U> for () {
+    type FuncT = ();
     type FunctorOut = ();
-    fn fmap(m: Self, _func: impl Fn(T) -> U + Send + 'static) -> Self::FunctorOut {
+    fn fmap(m: Self, _func: impl Fn(()) -> U + Send + 'static) -> Self::FunctorOut {
         m
     }
 }
-impl<T, U> Applicative<T, U> for () {
-    fn pure(_a: T) -> Self {
+impl<U> Applicative<U> for () {
+    type AppT = ();
+    fn pure(_a: ()) -> Self {
         ()
     }
 }
 
 impl Monad for () {
-    type T = ();
+    type MonadT = ();
     type MonadOut = ();
-    fn bind(m: Self, _func: impl Fn(Self::T) -> Self::MonadOut + Send + 'static) -> Self::MonadOut {
+    fn bind(
+        m: Self,
+        _func: impl Fn(Self::AppT) -> Self::MonadOut + Send + 'static,
+    ) -> Self::MonadOut {
         m
     }
 }

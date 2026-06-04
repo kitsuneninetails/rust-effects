@@ -17,13 +17,13 @@ use crate::typeclasses::applicative::Applicative;
 /// it (such as null data no longer having functions run, etc.).
 ///
 /// To implement the `Monad` type class, a deriving type must first declare the
-/// 'T' and `MonadOut` types.  The 'T' type is the type of data the Monad itself contains
+/// 'MonadT' and `MonadOut` types.  The 'MonadT' type is the type of data the Monad itself contains
 /// (as all MOn ad's must be type constructors), and 'MonadOut' is the output
 /// of the `bind` function.  This is almost always the deriving type parameterized
-/// on `U` instead of `T`.  Then, the `bind` function must be implemented.  
+/// on `U` instead of `MonadT`.  Then, the `bind` function must be implemented.  
 /// The first argument is the source type constructor, which will be the deriving
 /// type parameterized on `T`.  The second argument is the function to bind
-/// to the source, which should take data of type `T` and return the `Self::MonadOut``
+/// to the source, which should take data of type `Self::MonadT` and return the `Self::MonadOut``
 /// type.  The behavior of the `bind` should be to apply to function to the source type
 /// constructor should the source's state allow it.  The return of the `bind` will
 /// then replace the source in the chain of calls, meaning the original source will
@@ -40,19 +40,21 @@ use crate::typeclasses::applicative::Applicative;
 /// use rust_effects::prelude::*;
 /// struct MyStruct<T>(T);
 ///
-/// impl<T, U> Functor<T, U> for MyStruct<T> {
+/// impl<T, U> Functor<U> for MyStruct<T> {
+///   type FuncT = T;
 ///   type FunctorOut = MyStruct<U>;
 ///   fn fmap(m: Self, func: impl Fn(T) -> U + Send) -> Self::FunctorOut {
 ///     MyStruct(func(m.0))
 ///   }
 /// }
-/// impl<T, U> Applicative<T, U> for MyStruct<T> {
+/// impl<T, U> Applicative<U> for MyStruct<T> {
+///   type AppT = T;
 ///   fn pure(a: T) -> Self {
 ///     MyStruct(a)
 ///   }
 /// }
 /// impl<T: Send, U: Send> Monad<U> for MyStruct<T> {
-///     type T = T;
+///     type MonadT = T;
 ///     type MonadOut = MyStruct<U>;
 ///     fn bind(m: Self, func: impl FnOnce(T) -> Self::MonadOut + Send) -> Self::MonadOut {
 ///         func(m.0)
@@ -62,8 +64,8 @@ use crate::typeclasses::applicative::Applicative;
 ///
 /// The other two functions provided in the type class, `lift_m1` and `lift_m2`, are
 /// used to `lift` regular functions into the context of the related `Monad`
-/// implementation.  A normal function would just take data of `T` and return `U`,
-/// but once lifted with `lift_m1`, it would take `MonadOut<T>` and return `MonadOut<U>`.  
+/// implementation.  A normal function would just take data of `MonadT` and return `U`,
+/// but once lifted with `lift_m1`, it would take `MonadOut<MonadT>` and return `MonadOut<U>`.  
 /// Similarly, the `lift_m2`, the normal function would take two arguments and return
 /// a new type, but the lifted function would take two pieces of data wrapped in the
 /// `Monad` implementation and return an answer also wrapped.
@@ -75,29 +77,38 @@ use crate::typeclasses::applicative::Applicative;
 /// not be used.  Instead, use the global `lift_m1` and `lift_m2` functions/macros, as
 /// they will have better ability for type inference and be much easier to use
 /// effectively.
-pub trait Monad<U = ()>: Sized + Applicative<Self::T, U, FunctorOut = Self::MonadOut> {
-    type T;
+pub trait Monad<U = ()>:
+    Sized + Applicative<U, AppT = Self::MonadT, FunctorOut = Self::MonadOut>
+{
+    type MonadT;
     type MonadOut: Monad<U> + Send;
-    fn bind(m: Self, func: impl Fn(Self::T) -> Self::MonadOut + Send + 'static) -> Self::MonadOut;
-    fn lift_m1<In>(func: impl Fn(In::T) -> Self::T + Send + Clone + 'static) -> impl Fn(In) -> Self
+    fn bind(
+        m: Self,
+        func: impl Fn(Self::MonadT) -> Self::MonadOut + Send + 'static,
+    ) -> Self::MonadOut;
+    fn lift_m1<In>(
+        func: impl Fn(In::MonadT) -> Self::MonadT + Send + Clone + 'static,
+    ) -> impl Fn(In) -> Self
     where
-        In: Monad<Self::T, MonadOut = Self>,
+        In: Monad<Self::MonadT, MonadOut = Self>,
     {
         move |n: In| In::fmap(n, func.clone())
     }
     fn lift_m2<In1, In2>(
-        func: impl Fn(In1::T, In2::T) -> Self::T + Send + Clone + 'static,
+        func: impl Fn(In1::MonadT, In2::MonadT) -> Self::MonadT + Send + Clone + 'static,
     ) -> impl Fn(In1, In2) -> Self
     where
-        In1: Monad<Self::T, MonadOut = Self> + Send + 'static,
-        In2: Monad<Self::T, MonadOut = Self> + Send + Clone + 'static,
-        In1::T: Clone + Send + 'static,
+        In1: Monad<Self::MonadT, MonadOut = Self> + Send + 'static,
+        In2: Monad<Self::MonadT, MonadOut = Self> + Send + Clone + 'static,
+        In1::MonadT: Clone + Send + 'static,
     {
         move |in1: In1, in2: In2| {
             let fnc_tmp = func.clone();
-            In1::bind(in1, move |s1: In1::T| {
+            In1::bind(in1, move |s1: In1::MonadT| {
                 let tmp = fnc_tmp.clone();
-                In2::fmap(in2.clone(), move |s2: In2::T| tmp.clone()(s1.clone(), s2))
+                In2::fmap(in2.clone(), move |s2: In2::MonadT| {
+                    tmp.clone()(s1.clone(), s2)
+                })
             })
         }
     }
@@ -105,7 +116,7 @@ pub trait Monad<U = ()>: Sized + Applicative<Self::T, U, FunctorOut = Self::Mona
 
 pub fn bind<'a, M: Monad<U>, U>(
     m: M,
-    func: impl Fn(M::T) -> M::MonadOut + Send + 'a + 'static,
+    func: impl Fn(M::MonadT) -> M::MonadOut + Send + 'a + 'static,
 ) -> M::MonadOut {
     M::bind(m, func)
 }
@@ -114,8 +125,8 @@ pub fn bind<'a, M: Monad<U>, U>(
 ///
 /// Calls the `lift_m1` implementation for type `In` to return the given type 'Out'.
 ///
-/// The `lift_m1` function takes one argument: a function which converts the In::T type to
-/// Out::T type (they can be the same).  The return will be a function which converts `In<T>`
+/// The `lift_m1` function takes one argument: a function which converts the In::MonadT type to
+/// Out::MonadT type (they can be the same).  The return will be a function which converts `In<MonadT>`
 /// to `Out` (declared to be the same as `In::MonadOut`) using the rules of `In`'s `fmap`
 /// operation.
 ///
@@ -140,12 +151,12 @@ pub fn bind<'a, M: Monad<U>, U>(
 /// assert_eq!(nilable_add4(None), None);
 /// ```
 pub fn lift_m1<In, Out>(
-    func: impl Fn(In::T) -> Out::T + Send + Clone + 'static,
+    func: impl Fn(In::MonadT) -> Out::MonadT + Send + Clone + 'static,
 ) -> impl Fn(In) -> Out
 where
-    In: Monad<Out::T, MonadOut = Out> + Send + 'static,
+    In: Monad<Out::MonadT, MonadOut = Out> + Send + 'static,
     Out: Monad,
-    In::T: Send,
+    In::MonadT: Send,
 {
     In::MonadOut::lift_m1(func)
 }
@@ -162,7 +173,7 @@ macro_rules! lift_m1 {
 /// Calls the `lift_m2` implementation for type `In1`.
 ///
 /// The `lift_m2` function operates exactly like `lift_m1` except the provided function
-/// takes two arguments of `In1::T` and `In2::T type respectively.  The lifted
+/// takes two arguments of `In1::MonadT` and `In2::MonadT type respectively.  The lifted
 /// function, likewise, takes two arguments, typed as `In1` and `In2`, which must be
 /// the samne `Monad` implementation, typed as `In1` and `In2`.  The return is the
 /// type `Out` which was declared to be the same as as the `In1::MonadOut` trait type.  
@@ -195,12 +206,12 @@ macro_rules! lift_m1 {
 /// function, meaning that it will act more like a `bind` then `fmap` (in fact, this
 /// is the default implementation of `lift_m2`), instead of a `combine`.
 pub fn lift_m2<In1, In2, Out>(
-    func: impl Fn(In1::T, In2::T) -> Out::T + Send + Clone + 'static,
+    func: impl Fn(In1::MonadT, In2::MonadT) -> Out::MonadT + Send + Clone + 'static,
 ) -> impl Fn(In1, In2) -> Out
 where
-    In1: Monad<Out::T, MonadOut = Out> + Send + 'static,
-    In1::T: Clone + Send + 'static,
-    In2: Monad<Out::T, MonadOut = Out> + Clone + Send + 'static,
+    In1: Monad<Out::MonadT, MonadOut = Out> + Send + 'static,
+    In1::MonadT: Clone + Send + 'static,
+    In2: Monad<Out::MonadT, MonadOut = Out> + Clone + Send + 'static,
     Out: Monad,
 {
     In1::MonadOut::lift_m2(func)

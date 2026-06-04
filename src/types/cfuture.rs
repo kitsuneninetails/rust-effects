@@ -65,33 +65,36 @@ where
     }
 }
 
-impl<T, U> Functor<T, U> for CFuture<T>
+impl<T, U> Functor<U> for CFuture<T>
 where
     T: Send + Sync + Clone + 'static,
     U: Send + Sync + Clone + 'static,
 {
+    type FuncT = T;
     type FunctorOut = CFuture<U>;
     fn fmap(m: Self, func: impl FnOnce(T) -> U + Send + 'static) -> Self::FunctorOut {
         CFuture::new(m.map(func))
     }
 }
 
-impl<T, U> Applicative<T, U> for CFuture<T>
+impl<T, U> Applicative<U> for CFuture<T>
 where
     T: Send + Sync + Clone + 'static,
     U: Send + Sync + Clone + 'static,
 {
+    type AppT = T;
     fn pure(a: T) -> Self {
         CFuture::lazy(a)
     }
 }
 
-impl<F, T, U> ApplicativeFunctor<F, T, U> for CFuture<T>
+impl<F, T, U> ApplicativeFunctor<F, U> for CFuture<T>
 where
     F: Fn(T) -> U + Sync + Send + Clone + 'static,
     T: Send + Clone + Sync + 'static,
     U: Send + Clone + Sync + 'static,
 {
+    type AppFuncT = T;
     type AppFuncOut = CFuture<U>;
     type AppFuncFn = CFuture<F>;
     fn seq(m: Self, func: Self::AppFuncFn) -> Self::AppFuncOut {
@@ -105,7 +108,7 @@ where
     T: Send + Sync + Clone + 'static,
     U: Send + Sync + Clone + 'static,
 {
-    type T = T;
+    type MonadT = T;
     type MonadOut = CFuture<U>;
     fn bind(m: Self, func: impl FnOnce(T) -> Self::MonadOut + Send + 'static) -> Self::MonadOut {
         CFuture::new(m.then(func))
@@ -156,11 +159,11 @@ mod test {
     }
     #[tokio::test]
     async fn test_fmap_future() {
-        assert_eq!(fmap(pure::<CFuture<_>, _>(3), |i| i + 4).await, 7);
+        assert_eq!(fmap(pure::<CFuture<_>>(3), |i| i + 4).await, 7);
     }
     #[tokio::test]
     async fn test_pure_future() {
-        assert_eq!(pure::<CFuture<_>, _>(2).await, 2);
+        assert_eq!(pure::<CFuture<_>>(2).await, 2);
     }
     #[tokio::test]
     async fn test_seq_future() {
@@ -168,7 +171,9 @@ mod test {
         assert_eq!(seq(CFuture::lazy(3), func).await, 7);
     }
 
-    fn empty_if_even<'a, M: Monad<u32> + Monoid + Applicative<u32>>(input: String) -> M {
+    fn empty_if_even<'a, M: Monad<u32, MonadT = u32> + Monoid + Applicative<u32>>(
+        input: String,
+    ) -> M {
         if input.len() % 2 == 0 {
             M::empty()
         } else {
@@ -179,11 +184,11 @@ mod test {
     #[tokio::test]
     async fn test_bind_future() {
         assert_eq!(
-            bind(pure::<CFuture<_>, _>("dog".to_string()), empty_if_even).await,
+            bind(pure::<CFuture<_>>("dog".to_string()), empty_if_even).await,
             3
         );
         assert_eq!(
-            bind(pure::<CFuture<_>, _>("crow".to_string()), empty_if_even).await,
+            bind(pure::<CFuture<_>>("crow".to_string()), empty_if_even).await,
             0
         );
     }

@@ -28,24 +28,27 @@ impl<A: Monoid, E: Monoid> Semigroup for Result<A, E> {
     }
 }
 
-impl<T, U, E> Functor<T, U> for Result<T, E> {
+impl<T, U, E> Functor<U> for Result<T, E> {
+    type FuncT = T;
     type FunctorOut = Result<U, E>;
     fn fmap(m: Self, func: impl FnOnce(T) -> U + Send) -> Self::FunctorOut {
         m.map(func)
     }
 }
 
-impl<T, U, E> Applicative<T, U> for Result<T, E> {
+impl<T, U, E> Applicative<U> for Result<T, E> {
+    type AppT = T;
     fn pure(a: T) -> Self {
         Ok(a)
     }
 }
 
-impl<F, T, U, E> ApplicativeFunctor<F, T, U> for Result<T, E>
+impl<F, T, U, E> ApplicativeFunctor<F, U> for Result<T, E>
 where
     F: Fn(T) -> U,
     T: Send + Clone,
 {
+    type AppFuncT = T;
     type AppFuncOut = Result<U, E>;
     type AppFuncFn = Result<F, E>;
     fn seq(m: Self, func: Self::AppFuncFn) -> Self::AppFuncOut {
@@ -54,7 +57,7 @@ where
 }
 
 impl<T, U: Send, E: Send> Monad<U> for Result<T, E> {
-    type T = T;
+    type MonadT = T;
     type MonadOut = Result<U, E>;
     fn bind(m: Self, func: impl FnOnce(T) -> Self::MonadOut + Send) -> Self::MonadOut {
         m.and_then(func)
@@ -105,7 +108,7 @@ mod test {
     }
     #[test]
     fn test_pure_result() {
-        assert_eq!(pure::<Result<_, ()>, _>(2), Ok(2));
+        assert_eq!(pure::<Result<_, ()>>(2), Ok(2));
     }
 
     #[test]
@@ -118,7 +121,7 @@ mod test {
         assert!(seq(Err(()), func_none.ok_or(())).is_err());
     }
 
-    fn empty_if_even<M: Monad<u32> + Monoid + Applicative<u32>>(input: String) -> M {
+    fn empty_if_even<M: Monad<u32, MonadT = u32> + Monoid + Applicative<u32>>(input: String) -> M {
         if input.len() % 2 == 0 {
             M::empty()
         } else {

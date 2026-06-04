@@ -28,24 +28,27 @@ impl<A: Monoid> Semigroup for Option<A> {
     }
 }
 
-impl<T, U> Functor<T, U> for Option<T> {
+impl<T, U> Functor<U> for Option<T> {
+    type FuncT = T;
     type FunctorOut = Option<U>;
     fn fmap(m: Self, func: impl FnOnce(T) -> U + Send) -> Self::FunctorOut {
         m.map(func)
     }
 }
 
-impl<T, U> Applicative<T, U> for Option<T> {
+impl<T, U> Applicative<U> for Option<T> {
+    type AppT = T;
     fn pure(a: T) -> Self {
         Some(a)
     }
 }
 
-impl<F, T, U> ApplicativeFunctor<F, T, U> for Option<T>
+impl<F, T, U> ApplicativeFunctor<F, U> for Option<T>
 where
     F: Fn(T) -> U,
     T: Send + Clone,
 {
+    type AppFuncT = T;
     type AppFuncOut = Option<U>;
     type AppFuncFn = Option<F>;
     fn seq(m: Self, func: Self::AppFuncFn) -> Self::AppFuncOut {
@@ -54,9 +57,9 @@ where
 }
 
 impl<T: Send, U: Send> Monad<U> for Option<T> {
-    type T = T;
+    type MonadT = T;
     type MonadOut = Option<U>;
-    fn bind(m: Self, func: impl FnOnce(T) -> Self::MonadOut + Send) -> Self::MonadOut {
+    fn bind(m: Self, func: impl FnOnce(Self::MonadT) -> Self::MonadOut + Send) -> Self::MonadOut {
         m.and_then(func)
     }
 }
@@ -101,7 +104,7 @@ mod test {
 
     #[test]
     fn test_pure_option() {
-        assert_eq!(pure::<Option<_>, _>(2), Some(2));
+        assert_eq!(pure::<Option<_>>(2), Some(2));
     }
 
     #[test]
@@ -114,7 +117,7 @@ mod test {
         assert!(seq(None, func_none).is_none());
     }
 
-    fn empty_if_even<M: Monad<u32> + Monoid + Applicative<u32>>(input: String) -> M {
+    fn empty_if_even<M: Monad<u32, MonadT = u32> + Monoid + Applicative<u32>>(input: String) -> M {
         if input.len() % 2 == 0 {
             M::empty()
         } else {

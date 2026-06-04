@@ -10,35 +10,38 @@ use crate::typeclasses::{applicative::Applicative, functor::Functor};
 /// To derive this type class, one must declare the types `AppFuncOut` and `AppFuncFn`.
 /// Respectively, these are the Output result of the `seq` function (almost always
 /// the same as the deriving type with a <U> type parameter) and the function/closure
-/// type (almost always same as the deriving type with an <F> parameter).  The `T`
-/// type parameter to the trait is the source's contained type while `U` is the
+/// type (almost always same as the deriving type with an <F> parameter).  The `AppFuncT`
+/// type association must also be declared to be the contained type.  `U` is the
 /// generic type of the data contained in the output from `seq`.  The `F` type
 /// parameter holds the function/closure and must implement the `Fn` trait.
 ///
-/// After declaring the `AppFuncOut` and `AppFuncFn` types, an implementing type
-/// must then define the `seq` function.  THe type must also implement the
-/// `Applicative`(and hence `Functor`) traits.
+/// After declaring the `AppFuncT`, `AppFuncOut`, and `AppFuncFn` types, an
+/// implementing type must then define the `seq` function.  THe type must also implement
+/// the `Applicative`(and hence `Functor`) traits.
 ///
 /// Example:
 /// ```rust
 /// use rust_effects::prelude::*;
 /// struct MyStruct<T>(T);
 ///
-/// impl<T, U> Functor<T, U> for MyStruct<T> {
+/// impl<T, U> Functor<U> for MyStruct<T> {
+///   type FuncT = T;
 ///   type FunctorOut = MyStruct<U>;
-///   fn fmap(m: Self, func: impl Fn(T) -> U + Send) -> Self::FunctorOut {
+///   fn fmap(m: Self, func: impl Fn(Self::FuncT) -> U + Send) -> Self::FunctorOut {
 ///     MyStruct(func(m.0))
 ///   }
 /// }
-/// impl<T, U> Applicative<T, U> for MyStruct<T> {
-///   fn pure(a: T) -> Self {
+/// impl<T, U> Applicative<U> for MyStruct<T> {
+///   type AppT = T;
+///   fn pure(a: Self::AppT) -> Self {
 ///     MyStruct(a)
 ///   }
 /// }
-/// impl<F, T, U> ApplicativeFunctor<F, T, U> for MyStruct<T>
+/// impl<F, T, U> ApplicativeFunctor<F, U> for MyStruct<T>
 /// where
 ///     F: Fn(T) -> U,
 ///     T: Send + Clone, {
+///   type AppFuncT = T;
 ///   type AppFuncOut = MyStruct<U>;
 ///   type AppFuncFn = MyStruct<F>;
 ///   fn seq(m: Self, func: Self::AppFuncFn) -> Self::AppFuncOut  {
@@ -85,9 +88,10 @@ use crate::typeclasses::{applicative::Applicative, functor::Functor};
 ///
 /// With `fmap`, this can only be done with unwrapping the options to pass it in
 /// to the next step procedurally.
-pub trait ApplicativeFunctor<Func: Fn(T) -> U, T, U = ()>: Applicative<T, U> {
+pub trait ApplicativeFunctor<Func: Fn(Self::AppFuncT) -> U, U = ()>: Applicative<U> {
+    type AppFuncT;
     type AppFuncOut: Applicative<U>;
-    type AppFuncFn: Functor<Func, U, FunctorOut = Self::AppFuncOut>;
+    type AppFuncFn: Functor<U, FunctorOut = Self::AppFuncOut>;
 
     fn seq(m: Self, func: Self::AppFuncFn) -> Self::AppFuncOut;
 }
@@ -109,10 +113,10 @@ pub trait ApplicativeFunctor<Func: Fn(T) -> U, T, U = ()>: Applicative<T, U> {
 /// use rust_effects::prelude::seq;
 /// assert_eq!(seq(Some(3), Some(|a| a + 3)), Some(6));
 /// ```
-pub fn seq<'a, A, M, T, U>(m: A, func: A::AppFuncFn) -> A::AppFuncOut
+pub fn seq<'a, A, M, U>(m: A, func: A::AppFuncFn) -> A::AppFuncOut
 where
-    A: ApplicativeFunctor<M, T, U>,
-    M: Fn(T) -> U,
+    A: ApplicativeFunctor<M, U>,
+    M: Fn(A::AppFuncT) -> U,
 {
     A::seq(m, func)
 }

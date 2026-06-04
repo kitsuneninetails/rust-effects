@@ -3,19 +3,20 @@ use crate::typeclasses::functor::Functor;
 /// The Applicative typeclass
 ///
 /// Applicatives are an extension of `Functor` and generally fall between `Functor`
-/// and `Monad` in terms of utility.  The functionality of APplicative is split
+/// and `Monad` in terms of utility.  The functionality of Applicative is split
 /// between `Applicative` and `ApplicativeFunctor` in order to better control the
 /// necessary type parameters.  All Applicatives are Functors, meaning all types which
 /// derive the `Applicative` typeclass must also derive `Functor`.
 ///
-/// The basic version of the `Applicative` must only define the `pure` function.
+/// The basic version of the `Applicative` must only define the `pure` function as well
+/// as a type `AppT` which is the type that will be contained by the newly created Applicative.
 /// The role of the `pure` function is simply to create a new Applicative derivation
 /// from a piece of data.  All of these type classes are type constructors, meaning they
 /// must accept one and only one type parameter `T` in order to realize the type and be
-/// able to construct concrete data.  Thus, the `pure` function defines the type `T` and
+/// able to construct concrete data.  Thus, the `pure` function accepts the `AppT` type and
 /// provides a single piece of data in order to not only realize the type, but instantiate
 /// it with concrete data.  The result of `pure` is this instantiated type constructor,
-/// parameterized on type `T`, holding the data passed to the `pure` function.
+/// parameterized on type `AppT`, holding the data passed to the `pure` function.
 ///
 /// Another effect of the `pure` function is to oppose the `empty` function from `Monoid`.
 /// Where as the latter sets up data in such a way that it will be ignored by combinations,
@@ -33,20 +34,28 @@ use crate::typeclasses::functor::Functor;
 /// use rust_effects::prelude::*;
 /// struct MyStruct<T>(T);
 ///
-/// impl<T, U> Functor<T, U> for MyStruct<T> {
+/// impl<T, U> Functor<U> for MyStruct<T> {
+///   type FuncT = T;
 ///   type FunctorOut = MyStruct<U>;
 ///   fn fmap(m: Self, func: impl Fn(T) -> U + Send) -> Self::FunctorOut {
 ///     MyStruct(func(m.0))
 ///   }
 /// }
-/// impl<T, U> Applicative<T, U> for MyStruct<T> {
-///   fn pure(a: T) -> Self {
+/// impl<T, U> Applicative<U> for MyStruct<T> {
+///   type AppT = T;
+///   fn pure(a: Self::AppT) -> Self {
 ///     MyStruct(a)
 ///   }
 /// }
 /// ```
-pub trait Applicative<T, U = ()>: Functor<T, U> {
-    fn pure(a: T) -> Self;
+///
+/// Note that Appklicative also defines a `U`even though it doesn't use it.  This means
+/// the default parameter can be used to declare the `U` type as (), but this will also
+/// force the inherited Functor's `U` type to also be (), which may have kick-down
+/// effects if `fmap` is to be called on this Applicative instance.
+pub trait Applicative<U = ()>: Functor<U, FuncT = Self::AppT> {
+    type AppT;
+    fn pure(a: Self::AppT) -> Self;
 }
 
 /// Global `pure` function
@@ -71,7 +80,7 @@ pub trait Applicative<T, U = ()>: Functor<T, U> {
 /// ```rust
 ///   use rust_effects::prelude::pure;
 ///   let a: Option<u32> = pure(2);
-///   let b = pure::<Option<_>, _>(2);
+///   let b = pure::<Option<_>>(2);
 ///   fn foo(_b: Option<u32>) {}
 ///   foo(pure(2));
 /// ```
@@ -92,14 +101,14 @@ pub trait Applicative<T, U = ()>: Functor<T, U> {
 ///   use rust_effects::{prelude::pure};
 ///   assert_eq!(pure![Option](2), Some(2));
 /// ```
-pub fn pure<A: Applicative<T>, T>(t: T) -> A {
+pub fn pure<A: Applicative>(t: A::AppT) -> A {
     A::pure(t)
 }
 
 #[macro_export]
 macro_rules! pure {
     ($m:tt) => {
-        pure::<$m<_>, _>
+        pure::<$m<_>>
     };
 }
 #[cfg(test)]

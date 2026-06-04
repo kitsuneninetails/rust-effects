@@ -6,9 +6,11 @@
 /// typeclass to a simple mapping between two types.
 ///
 /// To implement the Functor trait, a type must first be a "type constructor" which
-/// accepts a type parameter to become a concrete type.  Then, it should delcare a type `F`:
+/// accepts a type parameter to become a concrete type.  Then, it should delcare a type `FunctorOut`
+/// as well as a `FuncT` that declares the functor's contained type:
 /// ```text
-/// type F: Functor<U>;
+/// type FuncT;
+/// type FunctorOut: Functor<U>;
 /// ```
 ///
 /// and implement the `fmap` function:
@@ -26,16 +28,18 @@
 /// use rust_effects::prelude::*;
 /// struct MyStruct<T>(T);
 ///
-/// impl<T, U> Functor<T, U> for MyStruct<T> {
+/// impl<T, U> Functor<U> for MyStruct<T> {
+///   type FuncT = T;
 ///   type FunctorOut = MyStruct<U>;
 ///   fn fmap(m: Self, func: impl Fn(T) -> U + Send) -> Self::FunctorOut {
 ///     MyStruct(func(m.0))
 ///   }
 /// }
 /// ```
-pub trait Functor<T, U = ()> {
+pub trait Functor<U = ()> {
+    type FuncT;
     type FunctorOut: Functor<U>;
-    fn fmap(m: Self, func: impl Fn(T) -> U + Send + 'static) -> Self::FunctorOut;
+    fn fmap(m: Self, func: impl Fn(Self::FuncT) -> U + Send + 'static) -> Self::FunctorOut;
 }
 
 /// Global `fmap` function
@@ -63,7 +67,10 @@ pub trait Functor<T, U = ()> {
 ///  assert_eq!(fmap(Some(3), |i| i + 4), Some(7));
 ///  assert_eq!(fmap(vec![3, 4], |i| i + 4), vec![7, 8]);
 /// ```
-pub fn fmap<A: Functor<T, U>, T, U>(a: A, func: impl Fn(T) -> U + Send + 'static) -> A::FunctorOut {
+pub fn fmap<A: Functor<U>, U>(
+    a: A,
+    func: impl Fn(A::FuncT) -> U + Send + 'static,
+) -> A::FunctorOut {
     A::fmap(a, func)
 }
 

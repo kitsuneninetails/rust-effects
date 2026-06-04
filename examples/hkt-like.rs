@@ -1,8 +1,8 @@
 use rust_effects::prelude::*;
 
-pub fn foo<'a, M>(input: impl Monad<u32, T = String, MonadOut = M>) -> M
+pub fn foo<'a, M>(input: impl Monad<u32, MonadT = String, MonadOut = M>) -> M
 where
-    M: Monad + Monoid + Applicative<u32>,
+    M: Monad<u32, MonadT = u32> + Monoid + Applicative<u32>,
 {
     Monad::bind(input, |a| {
         if a.len() % 2 == 1 {
@@ -13,9 +13,9 @@ where
     })
 }
 
-pub fn bar<F>(input: impl Functor<u32, String, FunctorOut = F>) -> F
+pub fn bar<F>(input: impl Functor<String, FuncT = u32, FunctorOut = F>) -> F
 where
-    F: Functor<String, ()> + Monoid + 'static,
+    F: Functor<(), FuncT = String> + Monoid + 'static,
 {
     Functor::fmap(
         input,
