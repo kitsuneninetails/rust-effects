@@ -1,6 +1,6 @@
 pub mod applicative;
 pub mod applicative_functor;
-// pub mod free;
+pub mod free_effect;
 pub mod functor;
 pub mod monad;
 pub mod monoid;

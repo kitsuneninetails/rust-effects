@@ -56,6 +56,14 @@ where
     }
 }
 
+// impl<T: Send, U: Send> Monad for HktOption<T, U> {
+//     type MonadU = U;
+//     type MonadT = T;
+//     type MonadOut = Option<U>;
+//     fn bind(m: Self, func: impl FnOnce(Self::MonadT) -> Self::MonadOut + Send) -> Self::MonadOut {
+//         m.and_then(func)
+//     }
+// }
 impl<T: Send, U: Send> Monad<U> for Option<T> {
     type MonadT = T;
     type MonadOut = Option<U>;
