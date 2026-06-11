@@ -34,7 +34,7 @@ where
     type OutU = U;
     type In = M;
     type Out = M;
-    fn fold(self, source: Self::In) -> Self::Out {
+    fn fold(&self, source: Self::In) -> Self::Out {
         source
     }
 }

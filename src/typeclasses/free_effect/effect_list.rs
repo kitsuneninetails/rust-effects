@@ -40,7 +40,7 @@ where
     type OutU = CurrEff::OutU;
     type In = NestEff::In;
     type Out = CurrEff::Out;
-    fn fold(self, source: Self::In) -> Self::Out {
+    fn fold(&self, source: Self::In) -> Self::Out {
         let folded_monad = self.next_effect.fold(source);
         let out = self.curr_effect.fold(folded_monad);
         out
